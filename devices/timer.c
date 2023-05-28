@@ -93,8 +93,8 @@ timer_sleep (int64_t ticks) {
 	int64_t start = timer_ticks ();
 
 	ASSERT (intr_get_level () == INTR_ON);
-	while (timer_elapsed (start) < ticks)
-		thread_yield ();
+	if (timer_elapsed(start) < ticks)
+		thread_sleep(start+ticks);
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -120,12 +120,25 @@ void
 timer_print_stats (void) {
 	printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
-
+
 /* Timer interrupt handler. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
-	thread_tick ();
+	thread_tick ();	// update the cpu usage for running process
+
+	/* Code to add:
+			check sleep list and the global tick.
+			find any threads to wake up,
+			move them to the ready list if necessary.
+			Update the global tick.
+	*/
+	// global tick인 min_tick이 현재 시간보다 작거나 같으면 깨울 thread 존재
+	
+	// if (ticks >= thread_get_mintick()){
+		thread_wakeup(ticks);
+		thread_save_mintick();
+	// }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
@@ -184,3 +197,4 @@ real_time_sleep (int64_t num, int32_t denom) {
 		busy_wait (loops_per_tick * num / 1000 * TIMER_FREQ / (denom / 1000));
 	}
 }
+
