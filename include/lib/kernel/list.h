@@ -104,6 +104,9 @@ struct list {
 	((STRUCT *) ((uint8_t *) &(LIST_ELEM)->next     \
 		- offsetof (STRUCT, MEMBER.next)))
 
+#define elem2thread(ELEM)	(list_entry(ELEM,struct thread, elem));	
+#define delem2thread(DELEM)	(list_entry(DELEM,struct thread, d_elem));	
+
 void list_init (struct list *);
 
 /* List traversal. */
