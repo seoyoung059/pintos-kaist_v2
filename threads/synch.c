@@ -111,9 +111,9 @@ sema_up (struct semaphore *sema) {
 
    old_level = intr_disable ();
    if (!list_empty (&sema->waiters)){
+      list_sort(&sema->waiters,less_priority,NULL);
       thread_unblock (list_entry (list_pop_front(&sema->waiters),
                struct thread, elem));
-      list_sort(&sema->waiters,less_priority,NULL);
    }
    sema->value++;
    // thread_yield();
@@ -323,7 +323,8 @@ cond_wait (struct condition *cond, struct lock *lock) {
 	ASSERT (lock_held_by_current_thread (lock));
 
 	sema_init (&waiter.semaphore, 0);
-	list_push_back (&cond->waiters, &waiter.elem);
+	// list_push_back (&cond->waiters, &waiter.elem);
+   list_insert_ordered(&cond->waiters,&waiter.elem,cmp_cond_waiters,NULL);
 	lock_release (lock);
 	sema_down (&waiter.semaphore);
 	lock_acquire (lock);
@@ -343,9 +344,10 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED) {
 	ASSERT (!intr_context ());
 	ASSERT (lock_held_by_current_thread (lock));
 
-	if (!list_empty (&cond->waiters))
+	if (!list_empty (&cond->waiters)){
+      list_sort(&cond->waiters,cmp_cond_waiters,NULL);
 		sema_up (&list_entry (list_pop_front (&cond->waiters),
-					struct semaphore_elem, elem)->semaphore);
+					struct semaphore_elem, elem)->semaphore);}
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by
@@ -380,4 +382,17 @@ void donate_priority(void){
       }
       tmp->wait_on_lock->holder->priority = max_priority;
    }
+}
+
+bool cmp_cond_waiters(const struct list_elem *a, const struct list_elem *b, void *aux){
+	// struct thread* thread_a = list_entry(a,struct thread, elem);
+	// struct thread* thread_b = list_entry(b,struct thread, elem);
+	// return (int)(thread_a->priority)	> (int)(thread_b->priority);
+   struct semaphore_elem* a_sema_elem = list_entry(a, struct semaphore_elem,elem);
+   struct list_elem* a_first_waiter = list_begin(&a_sema_elem->semaphore.waiters);
+   
+   struct semaphore_elem* b_sema_elem = list_entry(b, struct semaphore_elem,elem);
+   struct list_elem* b_first_waiter = list_begin(&b_sema_elem->semaphore.waiters);
+
+   return less_priority(a_first_waiter,b_first_waiter,NULL);
 }
