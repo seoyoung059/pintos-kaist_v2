@@ -117,7 +117,8 @@ sema_up (struct semaphore *sema) {
    }
    sema->value++;
    // thread_yield();
-   thread_set_priority(thread_get_priority());
+   thread_set_priority(thread_current()->priority_origin);
+   // thread_set_priority(thread_get_priority());
    intr_set_level (old_level);
 }
 
@@ -198,20 +199,22 @@ lock_acquire (struct lock *lock) {
       // list_insert_ordered(&lock->semaphore.waiters,&thread_current()->elem,less_priority,NULL);
       list_push_back(&lock->holder->donation,&thread_current()->d_elem);
       // sema_down (&lock->semaphore);
-
+      donate_priority();
       struct list_elem* tmp_delem;
-      int max_priority = lock->holder->priority_origin;
-      for (tmp_delem = lock->holder->donation.head.next; tmp_delem!=&(lock->holder->donation).tail; tmp_delem=list_next(tmp_delem)){
-         struct thread *thread_ptr = list_entry(tmp_delem, struct thread, d_elem);
-         // printf("\n\n\n@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n\n\n");
-         if(max_priority < thread_ptr->priority){
-            max_priority = thread_ptr->priority;
-         }
-      }
-      lock->holder->priority = max_priority;
+      // int max_priority = lock->holder->priority_origin;
+      // for (tmp_delem = lock->holder->donation.head.next; tmp_delem!=&(lock->holder->donation).tail; tmp_delem=list_next(tmp_delem)){
+      //    struct thread *thread_ptr = list_entry(tmp_delem, struct thread, d_elem);
+      //    // printf("\n\n\n@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n\n\n");
+      //    if(max_priority < thread_ptr->priority){
+      //       max_priority = thread_ptr->priority;
+      //    }
+      // }
+      // lock->holder->priority = max_priority;
+
    }
    // else{
       sema_down (&lock->semaphore);
+      thread_current()->wait_on_lock = NULL;
 	   lock->holder = thread_current();
    // }
 }
@@ -358,4 +361,23 @@ cond_broadcast (struct condition *cond, struct lock *lock) {
 
 	while (!list_empty (&cond->waiters))
 		cond_signal (cond, lock);
+}
+
+void donate_priority(void){
+   struct thread *tmp;
+   for(tmp = thread_current();(tmp->wait_on_lock !=NULL) &&
+                           (tmp->wait_on_lock->holder->priority < tmp->priority); tmp = tmp->wait_on_lock->holder)
+   {
+      struct list_elem* tmp_delem;
+      int max_priority = tmp->wait_on_lock->holder->priority_origin;
+      for (tmp_delem = tmp->wait_on_lock->holder->donation.head.next; 
+                           tmp_delem!=&(tmp->wait_on_lock->holder->donation).tail; tmp_delem=list_next(tmp_delem)){
+         struct thread *thread_ptr = list_entry(tmp_delem, struct thread, d_elem);
+         if(max_priority < thread_ptr->priority)
+         {
+            max_priority = thread_ptr->priority;
+         }
+      }
+      tmp->wait_on_lock->holder->priority = max_priority;
+   }
 }
