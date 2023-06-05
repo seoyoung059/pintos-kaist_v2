@@ -165,7 +165,7 @@ error:
 /* kaist ppt에서는 start_process + */
 int
 process_exec (void *f_name) {
-	printf("process_exec\n");
+	// printf("process_exec\n");
 	char *file_name = f_name;
 	bool success;
 
@@ -355,7 +355,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	for (token = strtok_r (file_name, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)){
 		if(!token) break;
 		argv[argc++] = token;
-		printf("%s\t%p\t%ld\n",argv[argc-1],argv[argc-1],strlen(argv[argc-1]));
+		// printf("%s\t%p\t%ld\n",argv[argc-1],argv[argc-1],strlen(argv[argc-1]));
 	}
 
 
