@@ -156,5 +156,8 @@ page_fault (struct intr_frame *f) {
 			write ? "writing" : "reading",
 			user ? "user" : "kernel");
 	kill (f);
+	//TODO: https://dapsu-startup.tistory.com/entry/pintOS-Project-3-%EB%B2%84%EA%B7%B8%EC%9E%A1%EC%9E%90 
+	// exit(-1)이 필요해질지도??
+	// exit(-1);
 }
 

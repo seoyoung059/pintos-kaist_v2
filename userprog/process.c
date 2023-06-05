@@ -18,6 +18,9 @@
 #include "threads/mmu.h"
 #include "threads/vaddr.h"
 #include "intrinsic.h"
+
+#include "lib/stdio.h"
+
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -26,7 +29,7 @@ static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
 static void initd (void *f_name);
 static void __do_fork (void *);
-
+static bool setup_stack (struct intr_frame *if_); //@@@@@@@@@@ 아래에 끌어서 위로 올라왔음. 사유: 위에 있는 함수에서 쓰려고 위에 재선언. 
 /* General process initializer for initd and other process. */
 static void
 process_init (void) {
@@ -65,7 +68,7 @@ initd (void *f_name) {
 #endif
 
 	process_init ();
-
+	debug_backtrace();
 	if (process_exec (f_name) < 0)
 		PANIC("Fail to launch initd\n");
 	NOT_REACHED ();
@@ -160,11 +163,55 @@ error:
 
 /* Switch the current execution context to the f_name.
  * Returns -1 on fail. */
+/* TODO: 확장 구현하여 프로그램 파일 이름만을 인자로 받는 대신 공백을 기준으로 여러 단어로 나누어지게 만든다.
+ * 첫 번째 단어는 프로그램 이름, 두 번째 단어는 첫 번째 인자... 이런 식으로 이어지게.
+ * 따라서 함수 process_exec("grep foo bar")는 두 개의 인자 foo bar을 받아서 grep 프로그램을 실행 */
 int
-process_exec (void *f_name) {
+process_exec (void *f_name) { // (= start_process)  'echo x y'
 	char *file_name = f_name;
 	bool success;
+	
 
+	//TODO: modify
+	char *rsp = (char *)USER_STACK; // user stack pointer
+   	char *token, *save_ptr;
+	int argc = 0;
+	printf("\n\n@@@@@before@@@@@@\t\t%p\t\t @@@@@@@\n\n", rsp);
+	for (token = strtok_r (f_name, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)){
+		if(!token) break;
+		rsp -= (char)(strlen(token)+1); // \0 값을 제외한 문자열의 길이를 반환. \0까지 기록해야하므로 +1.
+		printf("\n\n@@@@@inside for loop@@@@@@\t\t%p\t\t @@@@@@@\n\n", rsp);
+		for(int i = 0; i < strlen(token) + 1 ; i++){
+			printf("\n\n@@@@@before insert@@@@@@\t\t%p\t\t @@@@@@@\n\n", rsp+i);
+			// 주소 참조 연산자를 사용하면, PF가 뜬다.
+			*(rsp+i) = *(token + i);
+			printf("\n\n@@@@@@@@@@@\t\t%c\t\t @@@@@@@\n\n", *(rsp+i));
+			
+		}
+		argc++;
+	}
+
+	char * word_ptr = rsp;
+
+	uint8_t padding = 8 - (USER_STACK - (uint8_t)rsp) % 8; // 논란의 소지가 있음. 노션 찾아보기. @@@@@@@@@
+	while(padding--)
+		*(--rsp) = 0;
+
+	rsp -= 8;
+	*rsp = word_ptr;
+	for(word_ptr; word_ptr < USER_STACK; word_ptr++){
+		if(*word_ptr == '\0'){
+			rsp -= 8;
+			*rsp = word_ptr+1;
+		}
+	} 
+
+	
+	rsp -= 8;
+	*rsp = 0;
+	 
+	hex_dump(rsp, rsp, USER_STACK - (uint8_t)rsp, true);
+	
 	/* We cannot use the intr_frame in the thread structure.
 	 * This is because when current thread rescheduled,
 	 * it stores the execution information to the member. */
@@ -172,12 +219,66 @@ process_exec (void *f_name) {
 	_if.ds = _if.es = _if.ss = SEL_UDSEG;
 	_if.cs = SEL_UCSEG;
 	_if.eflags = FLAG_IF | FLAG_MBS;
+	
+	/* _if.R.rdi = argc;  // argc
+	_if.R.rsi = rsp;  // argv[0] */
+
+	_if.rsp = 0;
+	if(setup_stack(&_if)){
+		return false;
+	}
+
+	/* /////////////////////////////////////////////////////////////////////////////////
+	/////////////////////////위치 수정했음. 위에 있는 내용 아래로 복사.///////////////////////
+	////////////////////////////////////////////////////////////////////////////////
+
+	//TODO: modify
+	// uint8_t * rsp = USER_STACK; // user stack pointer
+   	char *token, *save_ptr;
+	int argc = 0;
+	printf("\n\n@@@@@@@@@@@@@@@\t\t rsp11 = %u \t\t @@@@@@@@@@@@@@@\n\n",_if.rsp);
+	for (token = strtok_r (f_name, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)){
+		if(!token) break;
+		_if.rsp -= (save_ptr - token);
+		printf("\n\n@@@@@@@@@@@@@@@\t\t rsp = %u \t\t @@@@@@@@@@@@@@@\n\n",_if.rsp);
+		strlcpy((char *)_if.rsp, token, save_ptr - token); // 여기서 고장!!
+		argc++;
+	}
+
+	char * word_ptr = _if.rsp;
+
+	uint8_t padding = 8 - (USER_STACK - (uint8_t)_if.rsp) % 8; // 논란의 소지가 있음. 노션 찾아보기. @@@@@@@@@
+	while(padding--)
+		*(char *)(--_if.rsp) = 0;
+
+	_if.rsp -= 8;
+	*(char *)(_if.rsp) = word_ptr;
+	for(word_ptr; word_ptr < USER_STACK; word_ptr++){
+		if(*word_ptr == '\0'){
+			_if.rsp -= 8;
+			*(char *)(_if.rsp) = word_ptr+1;
+		}
+	} 
+
+	
+	_if.rsp -= 8;
+	*(char *)(_if.rsp) = 0;
+	 
+	hex_dump(_if.rsp, _if.rsp, USER_STACK - (uint8_t)_if.rsp, true);
+	
+	_if.R.rdi = argc;  // argc
+	_if.R.rsi = _if.rsp;  // argv[0]
+
+	////////////////////////////////////////////////////////////////////////////////
+	/////////////////////////위치 수정했음. 위에 있는 내용 아래로 복사.///////////////////////
+	//////////////////////////////////////////////////////////////////////////////// */
 
 	/* We first kill the current context */
 	process_cleanup ();
 
 	/* And then load the binary */
-	success = load (file_name, &_if);
+	// success = load (*rsp, &_if);
+	success = load (file_name, &_if); //@@@@ 수정했음!
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
@@ -204,7 +305,8 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
-	return -1;
+	// return -1;
+	while(1);
 }
 
 /* Exit the process. This function is called by thread_exit (). */
@@ -310,7 +412,7 @@ struct ELF64_PHDR {
 #define ELF ELF64_hdr
 #define Phdr ELF64_PHDR
 
-static bool setup_stack (struct intr_frame *if_);
+// static bool setup_stack (struct intr_frame *if_); //@@@@@@@@@@@@@ 주석 처리 했음. 사유: 위에 있는 함수에서 쓰려고 위에 재선언. 
 static bool validate_segment (const struct Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		uint32_t read_bytes, uint32_t zero_bytes,
@@ -339,6 +441,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	file = filesys_open (file_name);
 	if (file == NULL) {
 		printf ("load: %s: open failed\n", file_name);
+		printf("\n@@@@@@@@@@@@@\t\t open_failed \t\t@@@@@@@@@@@@\n\n");
 		goto done;
 	}
 
@@ -351,6 +454,7 @@ load (const char *file_name, struct intr_frame *if_) {
 			|| ehdr.e_phentsize != sizeof (struct Phdr)
 			|| ehdr.e_phnum > 1024) {
 		printf ("load: %s: error loading executable\n", file_name);
+		printf("\n@@@@@@@@@@@@@\t\t error loading exec \t\t@@@@@@@@@@@@\n\n");
 		goto done;
 	}
 
@@ -408,9 +512,10 @@ load (const char *file_name, struct intr_frame *if_) {
 	}
 
 	/* Set up stack. */
-	if (!setup_stack (if_))
+	if (!setup_stack (if_)){
+		printf("\n@@@@@@@@@@@@@\t\tsetup_stack\t\t@@@@@@@@@@@@\n\n");
 		goto done;
-
+	}
 	/* Start address. */
 	if_->rip = ehdr.e_entry;
 

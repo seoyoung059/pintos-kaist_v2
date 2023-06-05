@@ -202,12 +202,11 @@ strstr (const char *haystack, const char *needle) {
 
    Example usage:
 
-   char s[] = "  String to  tokenize. ";
-   char *token, *save_ptr;
+   	char s[] = "  String to  tokenize. ";
+   	char *token, *save_ptr;
 
-   for (token = strtok_r (s, " ", &save_ptr); token != NULL;
-   token = strtok_r (NULL, " ", &save_ptr))
-   printf ("'%s'\n", token);
+	for (token = strtok_r (s, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr))
+		printf ("'%s'\n", token);
 
 outputs:
 
@@ -304,7 +303,7 @@ strlcpy (char *dst, const char *src, size_t size) {
 
 	ASSERT (dst != NULL);
 	ASSERT (src != NULL);
-
+	printf("\n\n@@@@@@@@@@@@@@@\t%u\t@@@@@@@@@@@@@\n\n",size);
 	src_len = strlen (src);
 	if (size > 0) {
 		size_t dst_len = size - 1;

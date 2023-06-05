@@ -37,10 +37,58 @@ syscall_init (void) {
 			FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
 }
 
-/* The main system call interface */
 void
 syscall_handler (struct intr_frame *f UNUSED) {
 	// TODO: Your implementation goes here.
 	printf ("system call!\n");
+	int number = f->R.rax;
+	switch (number)
+	{
+	case SYS_HALT:
+		/* code */
+		break;
+	case SYS_EXIT:
+		/* code */
+		break;
+	case SYS_FORK:
+		/* code */
+		break;
+	case SYS_EXEC:
+		/* code */
+		break;
+	case SYS_WAIT:
+		/* code */
+		break;
+	case SYS_CREATE:
+		/* code */
+		break;
+	case SYS_REMOVE:
+		/* code */
+		break;
+	case SYS_OPEN:
+		/* code */
+		break;
+	case SYS_FILESIZE:
+		/* code */
+		break;
+	case SYS_READ:
+		/* code */
+		break;
+	case SYS_WRITE:
+		/* code */
+		break;
+	case SYS_SEEK:
+		/* code */
+		break;
+	case SYS_TELL:
+		/* code */
+		break;
+	case SYS_CLOSE:
+		/* code */
+		break;
+	default:
+		printf ("Only a faint warmth still exists...\n");
+		break;
+	}
 	thread_exit ();
 }
