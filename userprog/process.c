@@ -49,7 +49,10 @@ process_create_initd (const char *file_name) {
 	if (fn_copy == NULL)
 		return TID_ERROR;
 	strlcpy (fn_copy, file_name, PGSIZE);
-
+	
+	
+  char *token, *save_ptr;
+	file_name = strtok_r (file_name, " ", &save_ptr);
 	/* Create a new thread to execute FILE_NAME. */
 	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
 	if (tid == TID_ERROR)
@@ -160,8 +163,10 @@ error:
 
 /* Switch the current execution context to the f_name.
  * Returns -1 on fail. */
+/* kaist ppt에서는 start_process + */
 int
 process_exec (void *f_name) {
+	// printf("process_exec\n");
 	char *file_name = f_name;
 	bool success;
 
@@ -176,8 +181,11 @@ process_exec (void *f_name) {
 	/* We first kill the current context */
 	process_cleanup ();
 
-	/* And then load the binary */
+	// char *token, *save_ptr;
+	// token = strtok_r(file_name, " ", &save_ptr);
 	success = load (file_name, &_if);
+	// success = load (token, &_if);
+	/* And then load the binary */
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
@@ -204,6 +212,9 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
+	for (int i=0;i < 1<<25;i++){
+		continue;
+	}
 	return -1;
 }
 
@@ -322,6 +333,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
  * Returns true if successful, false otherwise. */
 static bool
 load (const char *file_name, struct intr_frame *if_) {
+	// printf("loading: %s\n",file_name);
 	struct thread *t = thread_current ();
 	struct ELF ehdr;
 	struct file *file = NULL;
@@ -330,19 +342,33 @@ load (const char *file_name, struct intr_frame *if_) {
 	int i;
 
 	/* Allocate and activate page directory. */
-	t->pml4 = pml4_create ();
+	t->pml4 = pml4_create ();					/* 새 프로세스의 pml4 생성*/
 	if (t->pml4 == NULL)
 		goto done;
-	process_activate (thread_current ());
+	process_activate (thread_current ());	/* cr3 레지스터에 pml4 세팅*/
+
+
+
+  char *token, *save_ptr;
+	char *argv[128];
+	int argc = 0;
+
+	for (token = strtok_r (file_name, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)){
+		if(!token) break;
+		argv[argc++] = token;
+		// printf("%s\t%p\t%ld\n",argv[argc-1],argv[argc-1],strlen(argv[argc-1]));
+	}
+
 
 	/* Open executable file. */
-	file = filesys_open (file_name);
+	file = filesys_open (argv[0]);
 	if (file == NULL) {
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
 	}
 
 	/* Read and verify executable header. */
+	// elf file parsing해서 elf header 분리
 	if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
 			|| memcmp (ehdr.e_ident, "\177ELF\2\1\1", 7)
 			|| ehdr.e_type != 2
@@ -355,6 +381,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	}
 
 	/* Read program headers. */
+	/* load segment information*/
 	file_ofs = ehdr.e_phoff;
 	for (i = 0; i < ehdr.e_phnum; i++) {
 		struct Phdr phdr;
@@ -397,6 +424,7 @@ load (const char *file_name, struct intr_frame *if_) {
 						read_bytes = 0;
 						zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
 					}
+					/* 실행가능파일 load */
 					if (!load_segment (file, file_page, (void *) mem_page,
 								read_bytes, zero_bytes, writable))
 						goto done;
@@ -408,17 +436,60 @@ load (const char *file_name, struct intr_frame *if_) {
 	}
 
 	/* Set up stack. */
-	if (!setup_stack (if_))
+	if (!setup_stack (if_))				// user stack 초기화
 		goto done;
 
 	/* Start address. */
-	if_->rip = ehdr.e_entry;
+	if_->rip = ehdr.e_entry;			// entry point 초기화
 
 	/* TODO: Your code goes here.
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
+	// 1. command parsing하기
+	// 2. parsing한 단어들을 stack의 맨 위에 넣기
+	// 3. 2에서 넣고 8byte로 align되도록 padding
+	// 4. null pointer centinel (\0), word의 오른쪽에서 왼쪽으로 push
+	// 5. %rsi가 argv[0]의 주솟값을, %rdi가 argc의 값을 넣기
+	// 6. return address push(return값 없어도 fake로 넣기)
 
+	//TODO: modify
+	// uint8_t* rsp = (void *)USER_STACK; // user stack pointer
+	for (int i=0; i < argc; i++){
+		// int l = strlen(argv[argc-1-i]);
+		int l = strlen(argv[i]);
+		for (l; l>-1; l--){
+			if_->rsp-=(sizeof(char));
+			*(char *)if_->rsp = *(char*)(argv[i]+l);
+			// *(char *)if_->rsp = *(char*)(argv[argc-1-i]+l);
+		}
+	}
+
+	char * word_ptr = (char *) if_->rsp;
+
+	uint8_t padding = 8 - (USER_STACK - (uint8_t)if_->rsp) % 8; 
+
+	while(padding--){
+		*(char*)(--if_->rsp) = 0;
+		}
+	
+	if_->rsp -= sizeof(char*);
+	*(char**)if_->rsp = 0;
+	if_->rsp -= sizeof(char*);
+	*(char**)if_->rsp = word_ptr;
+	
+	for(word_ptr; word_ptr < USER_STACK; word_ptr++){
+		if(*word_ptr == '\0'){
+			if_->rsp -= sizeof(char*);
+			*((char**)if_->rsp) = (char *)(word_ptr+1);
+		}
+	}
+
+	if_->R.rdi = argc;  // argc
+	if_->R.rsi = if_->rsp + sizeof(char*);  // argv[0]
+
+	*(char**)if_->rsp = NULL;
+	// hex_dump((uintptr_t) if_->rsp, if_->rsp, USER_STACK - (uintptr_t)if_->rsp, true);
+	
 	success = true;
-
 done:
 	/* We arrive here whether the load is successful or not. */
 	file_close (file);
