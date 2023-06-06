@@ -332,7 +332,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
  * Returns true if successful, false otherwise. */
 static bool
 load (const char *file_name, struct intr_frame *if_) {
-	printf("loading: %s\n",file_name);
+	// printf("loading: %s\n",file_name);
 	struct thread *t = thread_current ();
 	struct ELF ehdr;
 	struct file *file = NULL;
@@ -484,7 +484,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	if_->R.rsi = if_->rsp + sizeof(char*);  // argv[0]
 
 	*(char**)if_->rsp = NULL;
-	hex_dump((uintptr_t) if_->rsp, if_->rsp, USER_STACK - (uintptr_t)if_->rsp, true);
+	// hex_dump((uintptr_t) if_->rsp, if_->rsp, USER_STACK - (uintptr_t)if_->rsp, true);
 	
 	success = true;
 done:

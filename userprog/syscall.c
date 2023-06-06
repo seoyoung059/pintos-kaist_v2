@@ -8,8 +8,43 @@
 #include "threads/flags.h"
 #include "intrinsic.h"
 
+#include "filesys/file.h"
+#include "filesys/filesys.h"
+#include "devices/input.h"
+// #include "user/syscall.h"
+// #include ""
+
+// #include "u"
+#include "userprog/process.h"
+
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
+
+void halt(void);
+
+void exit (int status);
+int fork (const char *thread_name);
+int exec(const char *cmd_line);
+int wait(int pid);
+bool create (const char *file, unsigned initial_size);
+bool remove (const char *file);
+int alloc_fd(void);
+int open (const char *file);
+// int open (const char *file)
+// {
+// 	struct file *new_file = filesys_open(file);
+// }
+
+int filesize (int fd);
+
+int read (int fd, void *buffer, unsigned size);
+
+int write (int fd, const void *buffer, unsigned size);
+
+void seek (int fd, unsigned position);
+unsigned tell (int fd);
+
+void close (int fd);
 
 /* System call.
  *
@@ -52,7 +87,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	 * 유저 스택의 arguments들을 커널로 복사
 	 * rax 레지스터에 시스템 콜의 return값 저장
 	 */
-	printf ("system call!\n");
+	// printf ("system call!\n");
 
 	int system_call_num = f->R.rax;
 
@@ -60,114 +95,254 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	switch(system_call_num){
 		case SYS_HALT:                   /* Halt the operating system. */
 			{
-				syscall_halt();
+				printf("halt\n\n");
+				halt();
 				break;
 			}
 		case SYS_EXIT:                   /* Terminate this process. */
 			{// void exit (int status)
-				int status = f->R.rdi;
-				syscall_exit(status);		
+				printf("exit\n\n");
+				exit(f->R.rdi);		
 				break;	
 			}
 		case SYS_FORK:                   /* Clone current process. */
 			{// pid_t fork (const char *thread_name)
-				char* thread_name = f->R.rdi;
-				return syscall_fork(thread_name);
+				printf("fork\n\n");
+				f->R.rax = fork(f->R.rdi);
 				break;
 			}
 		case SYS_EXEC:                   /* Switch current process. */
 			{// int exec (const char *file)
-				char* file =f->R.rdi;
-				return syscall_exec(file);
+				printf("exec\n\n");
+				f->R.rax = exec(f->R.rdi);
 				break;
 			}
 		case SYS_WAIT:                   /* Wait for a child process to die. */
 			{// int wait (pid_t pid)
-				int pid = f->R.rdi;
-				return syscall_wait(pid);
+				printf("wait\n\n");
+				f->R.rax = wait(f->R.rdi);
 				break;
 			}
 		case SYS_CREATE:                 /* Create a file. */
 			{// bool create (const char *file, unsigned initial_size)
-				char* file = f->R.rdi;
-				unsigned initial_size = f->R.rsi;
-				return syscall_create(file, initial_size);
+				printf("create\n\n");
+				f->R.rax = create(f->R.rdi, f->R.rsi);
 				break;
 			}
 		case SYS_REMOVE:                 /* Delete a file. */
 			{//bool remove (const char *file)
-				char* file = f->R.rdi;
-				return syscall_remove(file);
+				printf("remove\n\n");
+				f->R.rax = remove(f->R.rdi);
 				break;
 			}
 		case SYS_OPEN:                   /* Open a file. */
 			{// int open (const char *file)
-				char* file = f->R.rdi;
-				return syscall_open(file);
+				printf("open\n\n");
+				f->R.rax = open(f->R.rdi);
 				break;
 			}
 		case SYS_FILESIZE:               /* Obtain a file's size. */
 			{// int filesize (int fd)
-				int fd = f->R.rdi;
-				return syscall_filesize(fd);
+				printf("filesize\n\n");
+				f->R.rax = filesize(f->R.rdi);
 				break;
 			}
 		case SYS_READ:                   /* Read from a file. */
 			{//int read (int fd, void *buffer, unsigned size)
-				int fd = f->R.rdi;
-				unsigned size = f->R.rdx;
-				return syscall_read(fd, f->R.rsi, size);
+				printf("read\n\n");
+				f->R.rax =  read(f->R.rdi, f->R.rsi, f->R.rdx);
 				break;
 			}
 		case SYS_WRITE:                  /* Write to a file. */
 			{// int write (int fd, const void *buffer, unsigned size)
-				int fd = f->R.rdi;
-				unsigned size = f->R.rdx;
-				return syscall_write(fd, f->R.rsi, size);
+				printf("write\n\n");
+				f->R.rax = (uint64_t) write(f->R.rdi, f->R.rsi, f->R.rdx);
 				break;
 			}
 		case SYS_SEEK:                   /* Change position in a file. */
 			{//void seek (int fd, unsigned position)
-				int fd = f->R.rdi;
-				unsigned position = f->R.rsi;
-				return syscall_seek(fd, position);
+				printf("seek\n\n");
+				seek(f->R.rdi, f->R.rsi);
 				break;
 			}
 		case SYS_TELL:                   /* Report current position in a file. */
 			{//unsigned tell (int fd)
-				int fd = f->R.rdi;
-				return syscall_tell(fd);
+				printf("tell\n\n");
+				f->R.rax = tell(f->R.rdi);
 				break;
 			}
 		case SYS_CLOSE: 
 			{// void close (int fd)
-				int fd = f->R.rdi;
-				syscall_close(fd);
+				printf("close\n\n");
+				close(f->R.rdi);
 				break;
 			}
 	}
 	thread_exit ();
 }
 
-void syscall_halt(void)
-{
-	shutdown_power_off();
+
+
+
+void addr_check(void* ptr){
+	/* check if the user-provided ptr is in user pool
+	 * 	1. 페이지 테이블 체크해서 매핑되었는지 확인
+	 * 			- 유효서 검사 이후 lock이나 할당 가능
+	 * 	2. PHYS_BASE 아래의 user pointer check
+	 * 			- int get_user(const uint8_t *uaddr),
+	 * 				int put_user(uint8_t *udst, uint8_t byte) 이용
+	 */
+
+
 }
 
-void syscall_exit (int status)
+
+
+void halt(void)
 {
+	power_off();
+}
+
+void exit (int status)
+{
+	/* 현재 돌아가고 있는 유저 프로그램을 종료하고, 커널에 status를 return
+	 * 만약 부모 프로세스가 wait중이라면, 여기서 반환하는 status를 반환할 것.
+	 * 관습적으로 status=0은 성공이고 그 외엔 에러를 나타냄
+	 */
 	struct thread *cur = thread_current();
-	/* Save exit status at process descriptor */
 	printf("%s: exit(%d)\n", cur -> name, status);
 	thread_exit();
 }
 
-int syscall_exec(const char *cmd_line)
+int fork (const char *thread_name)
 {
-	return process_exec();
+	/* TODO: thread_name이라는 이름으로 현재 프로세스의 복사본인 새 프로세스를 만듦.
+	 * callee-saved 레지스터인 %RBX, %RSP, %RBP, and %R12 - %R15 외의 레지스터의
+	 * 값을 복사할 필요 없음. 자식 프로세스의 pid를 return해야하고 그 외에는
+	 * 유효한 pid를 return해서는 안됨. 자식 프로세스에서는, return value가 0이여야 함.
+	 * 자식 프로세스는 fd와 가상 메모리 공간을 포함한 복사된 자원들을 가져야 한다.
+	 * 부모 프로세스는 자식 프로세스가 성공적으로 복사되었는지 알기 전에는 return
+	 * 해서는 안된다. 즉, 자식 프로세스가 자원을 복사하지 못하면, 부모의 fork()호출은
+	 * TID_ERROR나게 되어있을 것이다.
+	 * threads/mmu.c의 pml4_for_each()를 사용하여 전체 유저 메모리 공간을 복사하게 되어있지만,
+	 * 전달된 pte_for_each_func의 빈 부분을 채워넣어야 한다.
+
+	 */
+
 }
 
-int syscall_wait(int pid)
+int exec(const char *cmd_line)
 {
+	/* FIXME: 현재 프로세스를 cmd_line의 실행가능 프로그램과 인자로 바꾼다.
+	 * 성공하면 return하지 않고, 그 외에는 exit state -1로 프로세스를
+	 * 끝내고, 그 어떤 이유로도 load나 실행이 안될 것이다.
+	 * 함수는 exec을 실행한 쓰레드의 이름을 바꾸지 않는다. fd는 exec call을 지나도
+	 * 남는다. 
+	 */
+	return process_exec(cmd_line);
+}
+
+int wait(int pid)
+{// TODO: 
 	
+}
+
+bool create (const char *file, unsigned initial_size)
+{
+	return filesys_create(file, initial_size);
+}
+
+bool remove (const char *file)
+{
+	return filesys_remove(file);
+}
+
+int alloc_fd(void){
+	int i = 2;
+	for(i; i < 64 && thread_current()->fdt[i] != NULL; i++)
+		continue;
+	if(i<64)
+		return i;
+	else
+		return -1;
+}
+
+
+int open (const char *file){
+	printf("\n\n@@@@@@open\t\n\n");
+
+	int fd = alloc_fd();
+	if(*file == "" && fd < 2){
+		return -1;
+	}
+	struct file *new_file = filesys_open(file);
+	(thread_current()->fdt)[fd]=new_file;
+	return fd;
+	
+}
+
+
+int filesize (int fd)
+{
+	struct file* f = thread_current()->fdt[fd];
+	return file_length(f);
+}
+
+int read (int fd, void *buffer, unsigned size)
+{
+	//실패하면 -1 return -> 언제 실패하지?
+	// fd가 유효하지 않을 때? (연결된 파일이 없을때?)
+	if(fd == 0){
+		//FIXME: 
+		// return input_getc();
+		int i;
+		for (i=0;i<size;i++){
+			input_getc();
+		}
+		return size;
+	}
+	else if (fd==1){
+		return -1;
+	}
+	else {
+		struct file* f = (thread_current()->fdt)[fd];
+		if (f==NULL) return -1;
+		return file_read(f,buffer,size);
+	}
+}
+
+int write (int fd, const void *buffer, unsigned size)
+{	
+	printf("\n\n@@@@write\n\n");
+	if (fd==0) {
+		return -1;
+	}
+	else if (fd==1){
+		//FIXME: 
+		printf("using buffer\n\n");
+		putbuf(buffer,size);
+		return size;
+	}
+	else {
+		struct file* f = thread_current()->fdt[fd];
+		return file_write(f, buffer, size);
+	}
+}
+
+void seek (int fd, unsigned position)
+{
+	struct file* f = thread_current()->fdt[fd];
+	file_seek(f, position);
+}
+
+unsigned tell (int fd)
+{
+	struct file* f = thread_current()->fdt[fd];
+	return file_tell(f);
+}
+
+void close (int fd)
+{
+	struct file* f = thread_current()->fdt[fd];
+	file_close(f);
 }

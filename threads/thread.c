@@ -195,6 +195,13 @@ thread_create (const char *name, int priority,
 	if (t == NULL)
 		return TID_ERROR;
 
+
+	// sema_init(&t->wait_sema, 0);
+	// t->exit_status = 0;
+	// sema_init(&t->exec_sema, 0);
+	// t->load_status = 0;
+	thread_fdt_init(t);
+
 	/* Initialize thread. */
 	init_thread (t, name, priority);		/* 쓰레드 스트럭처 초기화*/
 	tid = t->tid = allocate_tid ();			/* tid 할당 */
@@ -212,6 +219,8 @@ thread_create (const char *name, int priority,
 	t->tf.ss = SEL_KDSEG;
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
+
+	
 
 	/* Add to run queue. */
 	thread_unblock (t);												/* 쓰레드를 ready_list에 삽입 */
@@ -444,6 +453,12 @@ init_thread (struct thread *t, const char *name, int priority) {
 	list_init(&t->donation);
 	t->wait_on_lock =NULL;
 	t->priority_origin =priority;
+
+	sema_init(&t->wait_sema, 0);
+	sema_init(&t->exec_sema, 0);
+	t->exit_status = 0;
+	t->load_status = 0;
+	// thread_fdt_init(t);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -676,4 +691,10 @@ bool less_priority(const struct list_elem *a, const struct list_elem *b, void *a
 	struct thread* thread_a = list_entry(a,struct thread, elem);
 	struct thread* thread_b = list_entry(b,struct thread, elem);
 	return (int)(thread_a->priority)	> (int)(thread_b->priority);
+}
+
+
+void thread_fdt_init(struct thread *t){
+	struct file *new_fdt = (struct file *)palloc_get_page(PAL_ZERO);
+	t->fdt = new_fdt;
 }
