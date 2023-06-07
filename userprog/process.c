@@ -51,7 +51,7 @@ process_create_initd (const char *file_name) {
 	strlcpy (fn_copy, file_name, PGSIZE);
 	
 	
-  char *token, *save_ptr;
+  	char *token, *save_ptr;
 	file_name = strtok_r (file_name, " ", &save_ptr);
 	/* Create a new thread to execute FILE_NAME. */
 	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
@@ -95,6 +95,9 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	bool writable;
 
 	/* 1. TODO: If the parent_page is kernel page, then return immediately. */
+	if(is_kernel_vaddr(parent_page)){
+		return  false;
+	}
 
 	/* 2. Resolve VA from the parent's page map level 4. */
 	parent_page = pml4_get_page (parent->pml4, va);
@@ -102,14 +105,19 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	/* 3. TODO: Allocate new PAL_USER page for the child and set result to
 	 *    TODO: NEWPAGE. */
 
+	newpage = palloc_get_page(PAL_USER);
+
 	/* 4. TODO: Duplicate parent's page to the new page and
 	 *    TODO: check whether parent's page is writable or not (set WRITABLE
 	 *    TODO: according to the result). */
+
+	writable = is_writable((uint64_t *)parent_page);
 
 	/* 5. Add new page to child's page table at address VA with WRITABLE
 	 *    permission. */
 	if (!pml4_set_page (current->pml4, va, newpage, writable)) {
 		/* 6. TODO: if fail to insert page, do error handling. */
+		return false;
 	}
 	return true;
 }
@@ -125,6 +133,9 @@ __do_fork (void *aux) {
 	struct thread *parent = (struct thread *) aux;
 	struct thread *current = thread_current ();
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
+	
+	current->parent = parent; // set child node's parent address
+
 	struct intr_frame *parent_if;
 	bool succ = true;
 
@@ -167,9 +178,7 @@ error:
 int
 process_exec (void *f_name) {
 	// printf("process_exec\n");
-	// printf("%s\n\n",(char*)f_name);
 	char *file_name = f_name;
-	// printf("filename: %s\n\n",file_name);
 	bool success;
 
 	/* We cannot use the intr_frame in the thread structure.
@@ -191,6 +200,7 @@ process_exec (void *f_name) {
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
+	
 	if (!success)
 		return -1;
 
@@ -351,7 +361,7 @@ load (const char *file_name, struct intr_frame *if_) {
 
 
 
-  char *token, *save_ptr;
+  	char *token, *save_ptr;
 	char *argv[128];
 	int argc = 0;
 
@@ -361,14 +371,12 @@ load (const char *file_name, struct intr_frame *if_) {
 		// printf("%s\t%p\t%ld\n",argv[argc-1],argv[argc-1],strlen(argv[argc-1]));
 	}
 
-
 	/* Open executable file. */
 	file = filesys_open (argv[0]);
 	if (file == NULL) {
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
 	}
-
 	/* Read and verify executable header. */
 	// elf file parsing해서 elf header 분리
 	if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -381,7 +389,6 @@ load (const char *file_name, struct intr_frame *if_) {
 		printf ("load: %s: error loading executable\n", file_name);
 		goto done;
 	}
-
 	/* Read program headers. */
 	/* load segment information*/
 	file_ofs = ehdr.e_phoff;
@@ -436,7 +443,7 @@ load (const char *file_name, struct intr_frame *if_) {
 				break;
 		}
 	}
-
+	
 	/* Set up stack. */
 	if (!setup_stack (if_))				// user stack 초기화
 		goto done;

@@ -1,18 +1,18 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
+#include <string.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/loader.h"
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
+#include "threads/palloc.h"
 
 #include "filesys/file.h"
 #include "filesys/filesys.h"
 #include "devices/input.h"
-#include "lib/string.h"
-#include "threads/palloc.h"
 // #include "user/syscall.h"
 // #include ""
 
@@ -118,8 +118,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		case SYS_EXEC:                   /* Switch current process. */
 			{// int exec (const char *file)
 				// printf("exec\n\n");
-				// f->R.rax = 
-				exec(f->R.rdi);
+				f->R.rax = exec(f->R.rdi);
 				break;
 			}
 		case SYS_WAIT:                   /* Wait for a child process to die. */
@@ -230,8 +229,8 @@ int fork (const char *thread_name)
 	 * TID_ERROR나게 되어있을 것이다.
 	 * threads/mmu.c의 pml4_for_each()를 사용하여 전체 유저 메모리 공간을 복사하게 되어있지만,
 	 * 전달된 pte_for_each_func의 빈 부분을 채워넣어야 한다.
-
 	 */
+	process_fork(thread_name,&(thread_current()->tf));
 
 }
 
@@ -243,17 +242,18 @@ int exec(const char *cmd_line)
 	 * 함수는 exec을 실행한 쓰레드의 이름을 바꾸지 않는다. fd는 exec call을 지나도
 	 * 남는다. 
 	 */
+	
 	char *fn_copy;
+	tid_t tid;
 
-	/* Make a copy of FILE_NAME.
-	 * Otherwise there's a race between the caller and load(). */
 	fn_copy = palloc_get_page (0);
-	// if (fn_copy == NULL)
-	// 	return TID_ERROR;
+	if (fn_copy == NULL)
+		return TID_ERROR;
 	strlcpy (fn_copy, cmd_line, PGSIZE);
-	// printf("%s\n\n",fn_copy);
+
+	bool success = process_exec(fn_copy);
+	if(!success) return -1;
 	// return process_exec(cmd_line);
-	if(process_exec(fn_copy)==-1) exit(-1);
 }
 
 int wait(int pid)
