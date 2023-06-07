@@ -191,35 +191,41 @@ thread_create (const char *name, int priority,
 	ASSERT (function != NULL);
 
 	/* Allocate thread. */
-	t = palloc_get_page (PAL_ZERO);
+	t = palloc_get_page (PAL_ZERO);			/* 페이지 할당 */
 	if (t == NULL)
 		return TID_ERROR;
 
+
 	/* Initialize thread. */
-	init_thread (t, name, priority);
-	tid = t->tid = allocate_tid ();
+	init_thread (t, name, priority);		/* 쓰레드 스트럭처 초기화*/
+	tid = t->tid = allocate_tid ();			/* tid 할당 */
+
+	struct file **new_fdt = (struct file **)palloc_get_page(PAL_ZERO);
+	t->fdt = new_fdt;
 
 	/* Call the kernel_thread if it scheduled.
 	 * Note) rdi is 1st argument, and rsi is 2nd argument. */
+	/* tf는 interrupt frame, 
+	 * kaist ppt의 kf와 같은 것? init_thread에서 struct로 생성하여 따로 할당 없이 진행
+	 */
 	t->tf.rip = (uintptr_t) kernel_thread;
-	t->tf.R.rdi = (uint64_t) function;
-	t->tf.R.rsi = (uint64_t) aux;
+	t->tf.R.rdi = (uint64_t) function;				/* 실행할 함수 */
+	t->tf.R.rsi = (uint64_t) aux;							/* 함수 parameters*/
 	t->tf.ds = SEL_KDSEG;
 	t->tf.es = SEL_KDSEG;
 	t->tf.ss = SEL_KDSEG;
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
 
+	
 	/* Add to run queue. */
-	thread_unblock (t);
+	thread_unblock (t);												/* 쓰레드를 ready_list에 삽입 */
 
 	/* Compare the priorities of the currently running thread and the newly
 	inserted one. Yield the CPU if the newly arriving thread has higer priority*/
-	/////////////////////////////////////////////////
 	if (thread_current()->priority < t->priority){
 		thread_yield();
 	}
-	/////////////////////////////////////////////////
 	return tid;
 }
 
@@ -253,12 +259,7 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	// list_push_back (&ready_list, &t->elem);
-
-
-	/////////////////////////////////////////////////
 	list_insert_ordered(&ready_list, &t->elem,less_priority, NULL);
-	/////////////////////////////////////////////////
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
@@ -332,9 +333,6 @@ void
 thread_set_priority (int new_priority) {
 	thread_current ()->priority_origin = new_priority;
 	thread_current ()->priority = new_priority;
-	// enum intr_level old_level=intr_disable();
-	// list_sort(&ready_list,less_priority,NULL);
-	// intr_set_level (old_level);
 	int max_priority = new_priority;
 	struct list_elem* tmp_delem;
 	for (tmp_delem = thread_current()->donation.head.next; 
@@ -451,6 +449,12 @@ init_thread (struct thread *t, const char *name, int priority) {
 	list_init(&t->donation);
 	t->wait_on_lock =NULL;
 	t->priority_origin =priority;
+
+	sema_init(&t->wait_sema, 0);
+	sema_init(&t->exec_sema, 0);
+	t->exit_status = 0;
+	t->load_status = 0;
+	list_init(&t->child_list);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -669,7 +673,6 @@ void thread_save_mintick(){
 }
 
 int64_t thread_get_mintick(){
-	// thread_save_mintick();
 	return min_wakeup_tick;
 }
 
@@ -685,3 +688,4 @@ bool less_priority(const struct list_elem *a, const struct list_elem *b, void *a
 	struct thread* thread_b = list_entry(b,struct thread, elem);
 	return (int)(thread_a->priority)	> (int)(thread_b->priority);
 }
+
