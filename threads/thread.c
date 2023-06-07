@@ -224,7 +224,7 @@ thread_create (const char *name, int priority,
 	t->tf.eflags = FLAG_IF;
 
 	
-
+	// sema_down(&t->exec_sema);
 	/* Add to run queue. */
 	thread_unblock (t);												/* 쓰레드를 ready_list에 삽입 */
 
@@ -461,6 +461,7 @@ init_thread (struct thread *t, const char *name, int priority) {
 	sema_init(&t->exec_sema, 0);
 	t->exit_status = 0;
 	t->load_status = 0;
+	list_init(&t->child_list);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

@@ -215,6 +215,7 @@ void exit (int status)
 	 */
 	struct thread *cur = thread_current();
 	printf("%s: exit(%d)\n", cur -> name, status);
+	thread_current()->exit_status=status;
 	thread_exit();
 }
 
@@ -230,9 +231,9 @@ int fork (const char *thread_name)
 	 * TID_ERROR나게 되어있을 것이다.
 	 * threads/mmu.c의 pml4_for_each()를 사용하여 전체 유저 메모리 공간을 복사하게 되어있지만,
 	 * 전달된 pte_for_each_func의 빈 부분을 채워넣어야 한다.
-
 	 */
-
+	return process_fork(thread_name,&thread_current()->tf);
+	
 }
 
 int exec(const char *cmd_line)
@@ -248,11 +249,9 @@ int exec(const char *cmd_line)
 	/* Make a copy of FILE_NAME.
 	 * Otherwise there's a race between the caller and load(). */
 	fn_copy = palloc_get_page (0);
-	// if (fn_copy == NULL)
-	// 	return TID_ERROR;
+	if (fn_copy == NULL)
+		return TID_ERROR;
 	strlcpy (fn_copy, cmd_line, PGSIZE);
-	// printf("%s\n\n",fn_copy);
-	// return process_exec(cmd_line);
 	if(process_exec(fn_copy)==-1) exit(-1);
 }
 
@@ -264,7 +263,6 @@ int wait(int pid)
 bool create (const char *file, unsigned initial_size)
 {
 	if (file==NULL) exit(-1);
-	// if(!is_kernel_vaddr(file)) exit(-1);
 	return filesys_create(file, initial_size);
 }
 
@@ -274,19 +272,9 @@ bool remove (const char *file)
 }
 
 int set_fd(struct file* f){
-	// debug_backtrace();
 	int i=2;
-	// printf("newfdset\n\n");
-	// printf("%d\n\n",i);
 	struct file** fdt = thread_current()->fdt;
-	// printf("got fdt: %p\n\n",fdt);
-	// printf("got fdt[0]: %p\n\n",*fdt);
-	
-	// for(i=2; i < 64 && (struct file**)(thread_current()->fdt + sizeof(struct file **)*i) != NULL; i++)
-	for(i=2; i < 64 && fdt[i] != NULL; i++)
-	{	
-		continue;
-	}
+	for(i=2; i < 64 && fdt[i] != NULL; i++) continue;
 	if(i < 64)
 	{	thread_current()->fdt[i]=f;
 		return i;
@@ -295,12 +283,6 @@ int set_fd(struct file* f){
 		return -1;
 }
 
-// int set_fd (struct file* f){
-// 	int fd = thread_current()->next_fd;
-// 	(thread_current()->fdt)[fd]=f;
-// 	(thread_current()->next_fd)++;
-// 	return fd;
-// }
 
 int open (const char *file){
 	/* file 경로의 파일을 열고, fd를 return
@@ -311,24 +293,11 @@ int open (const char *file){
 	 * 한 file에 대한 서로 다른 파일 디스크립터는 각각 독립적으로 닫히고,
 	 * file position을 공유하지 않음
 	 */
-
-	// lock_acquire(&filesys_lock);
-
-	// printf("@@@@@@@@@@@@@@@hihi 1111\n\n");
-	// int fd = alloc_fd();
-	// if(*file == "" && fd < 2){
-	// 	return -1;
-	// }
-	
-	// printf("got fdt: %p\n\n",thread_current()->fdt);
 	if (file==NULL) return -1;
-	// lock_acquire(&filesys_lock);
 	struct file *new_file = filesys_open(file);
 	if (new_file==NULL) return -1;
 	
 	int fd = set_fd(new_file);
-	// lock_release(&filesys_lock);
-	// printf("\n\n@@@@@@%d\t\n\n",fd);
 	return fd;
 }
 
@@ -344,8 +313,6 @@ int read (int fd, void *buffer, unsigned size)
 	//실패하면 -1 return -> 언제 실패하지?
 	// fd가 유효하지 않을 때? (연결된 파일이 없을때?)
 	if(fd == STDIN_FILENO){
-		//FIXME: 
-		// return input_getc();
 		int i;
 		for (i=0;i<size;i++){
 			input_getc();
@@ -372,7 +339,6 @@ int write (int fd, const void *buffer, unsigned size)
 		return -1;
 	}
 	else if (fd==STDOUT_FILENO){
-		//FIXME: 
 		putbuf(buffer,size);
 		return size;
 	}

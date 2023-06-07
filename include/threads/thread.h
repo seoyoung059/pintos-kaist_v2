@@ -109,7 +109,7 @@ struct thread {
 	int next_fd;
 	
 	struct thread* parent;
-	struct list_elem siblings;
+	struct list_elem c_elem;
 	struct list child_list;
 
 #ifdef USERPROG
