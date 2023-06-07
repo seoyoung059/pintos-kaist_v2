@@ -11,6 +11,8 @@
 #include "filesys/file.h"
 #include "filesys/filesys.h"
 #include "devices/input.h"
+#include "lib/string.h"
+#include "threads/palloc.h"
 // #include "user/syscall.h"
 // #include ""
 
@@ -116,7 +118,8 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		case SYS_EXEC:                   /* Switch current process. */
 			{// int exec (const char *file)
 				// printf("exec\n\n");
-				f->R.rax = exec(f->R.rdi);
+				// f->R.rax = 
+				exec(f->R.rdi);
 				break;
 			}
 		case SYS_WAIT:                   /* Wait for a child process to die. */
@@ -240,7 +243,17 @@ int exec(const char *cmd_line)
 	 * 함수는 exec을 실행한 쓰레드의 이름을 바꾸지 않는다. fd는 exec call을 지나도
 	 * 남는다. 
 	 */
-	return process_exec(cmd_line);
+	char *fn_copy;
+
+	/* Make a copy of FILE_NAME.
+	 * Otherwise there's a race between the caller and load(). */
+	fn_copy = palloc_get_page (0);
+	// if (fn_copy == NULL)
+	// 	return TID_ERROR;
+	strlcpy (fn_copy, cmd_line, PGSIZE);
+	// printf("%s\n\n",fn_copy);
+	// return process_exec(cmd_line);
+	if(process_exec(fn_copy)==-1) exit(-1);
 }
 
 int wait(int pid)

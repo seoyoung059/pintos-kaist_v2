@@ -167,7 +167,9 @@ error:
 int
 process_exec (void *f_name) {
 	// printf("process_exec\n");
+	// printf("%s\n\n",(char*)f_name);
 	char *file_name = f_name;
+	// printf("filename: %s\n\n",file_name);
 	bool success;
 
 	/* We cannot use the intr_frame in the thread structure.
