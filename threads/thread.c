@@ -196,19 +196,13 @@ thread_create (const char *name, int priority,
 		return TID_ERROR;
 
 
-	// sema_init(&t->wait_sema, 0);
-	// t->exit_status = 0;
-	// sema_init(&t->exec_sema, 0);
-	// t->load_status = 0;
-	// thread_fdt_init(t);
-
 	/* Initialize thread. */
 	init_thread (t, name, priority);		/* 쓰레드 스트럭처 초기화*/
 	tid = t->tid = allocate_tid ();			/* tid 할당 */
 
 	struct file **new_fdt = (struct file **)palloc_get_page(PAL_ZERO);
 	t->fdt = new_fdt;
-	// printf("setfdt: %p\n\n\n",t->fdt);
+
 	/* Call the kernel_thread if it scheduled.
 	 * Note) rdi is 1st argument, and rsi is 2nd argument. */
 	/* tf는 interrupt frame, 
@@ -224,7 +218,6 @@ thread_create (const char *name, int priority,
 	t->tf.eflags = FLAG_IF;
 
 	
-	// sema_down(&t->exec_sema);
 	/* Add to run queue. */
 	thread_unblock (t);												/* 쓰레드를 ready_list에 삽입 */
 
@@ -696,8 +689,3 @@ bool less_priority(const struct list_elem *a, const struct list_elem *b, void *a
 	return (int)(thread_a->priority)	> (int)(thread_b->priority);
 }
 
-
-// void thread_fdt_init(struct thread *t){
-// 	struct file *new_fdt = (struct file *)palloc_get_page(PAL_ZERO);
-// 	t->fdt = new_fdt;
-// }

@@ -96,7 +96,7 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	bool writable;
 
 	/* 1. TODO: If the parent_page is kernel page, then return immediately. */
-	if(is_kernel_vaddr(parent)) return false;
+	if(is_kernel_vaddr(va)) return false;
 
 	/* 2. Resolve VA from the parent's page map level 4. */
 	parent_page = pml4_get_page (parent->pml4, va);
@@ -127,14 +127,12 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
  *       this function. */
 static void
 __do_fork (void *aux) {
-	printf("\n\n@@@do fork\n\n");
 	struct intr_frame if_;
 	struct thread *parent = (struct thread *) aux;
 	struct thread *current = thread_current ();
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
 	struct intr_frame *parent_if;
 	bool succ = true;
-
 
 	/* 1. Read the cpu context to local stack. */
 	memcpy (&if_, parent_if, sizeof (struct intr_frame));
@@ -176,6 +174,7 @@ __do_fork (void *aux) {
 	if (succ)
 		do_iret (&if_);
 error:
+	sema_up(&parent->exec_sema);
 	thread_exit ();
 }
 
@@ -184,10 +183,7 @@ error:
 /* kaist ppt에서는 start_process + */
 int
 process_exec (void *f_name) {
-	// printf("process_exec\n");
-	// printf("%s\n\n",(char*)f_name);
 	char *file_name = f_name;
-	// printf("filename: %s\n\n",file_name);
 	bool success;
 
 	/* We cannot use the intr_frame in the thread structure.
