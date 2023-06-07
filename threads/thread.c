@@ -201,13 +201,14 @@ thread_create (const char *name, int priority,
 	// sema_init(&t->exec_sema, 0);
 	// t->load_status = 0;
 	// thread_fdt_init(t);
-		struct file *new_fdt = (struct file *)palloc_get_page(PAL_ZERO);
-	t->fdt = new_fdt;
 
 	/* Initialize thread. */
 	init_thread (t, name, priority);		/* 쓰레드 스트럭처 초기화*/
 	tid = t->tid = allocate_tid ();			/* tid 할당 */
 
+	struct file **new_fdt = (struct file **)palloc_get_page(PAL_ZERO);
+	t->fdt = new_fdt;
+	// printf("setfdt: %p\n\n\n",t->fdt);
 	/* Call the kernel_thread if it scheduled.
 	 * Note) rdi is 1st argument, and rsi is 2nd argument. */
 	/* tf는 interrupt frame, 
@@ -460,7 +461,6 @@ init_thread (struct thread *t, const char *name, int priority) {
 	sema_init(&t->exec_sema, 0);
 	t->exit_status = 0;
 	t->load_status = 0;
-	// thread_fdt_init(t);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -696,7 +696,7 @@ bool less_priority(const struct list_elem *a, const struct list_elem *b, void *a
 }
 
 
-void thread_fdt_init(struct thread *t){
-	struct file *new_fdt = (struct file *)palloc_get_page(PAL_ZERO);
-	t->fdt = new_fdt;
-}
+// void thread_fdt_init(struct thread *t){
+// 	struct file *new_fdt = (struct file *)palloc_get_page(PAL_ZERO);
+// 	t->fdt = new_fdt;
+// }

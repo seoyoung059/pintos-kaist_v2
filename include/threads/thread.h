@@ -106,6 +106,7 @@ struct thread {
 	struct semaphore exec_sema;
 	int load_status;
 	struct file **fdt;
+	int next_fd;
 	
 	struct thread* parent;
 	struct list_elem siblings;

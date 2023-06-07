@@ -260,32 +260,63 @@ bool remove (const char *file)
 	return filesys_remove(file);
 }
 
-int alloc_fd(void){
-	int i = 2;
-	for(i; i < 64 && thread_current()->fdt[i] != NULL; i++)
+int set_fd(struct file* f){
+	// debug_backtrace();
+	int i=2;
+	// printf("newfdset\n\n");
+	// printf("%d\n\n",i);
+	struct file** fdt = thread_current()->fdt;
+	// printf("got fdt: %p\n\n",fdt);
+	// printf("got fdt[0]: %p\n\n",*fdt);
+	
+	// for(i=2; i < 64 && (struct file**)(thread_current()->fdt + sizeof(struct file **)*i) != NULL; i++)
+	for(i=2; i < 64 && fdt[i] != NULL; i++)
+	{	
 		continue;
-	if(i<64)
+	}
+	if(i < 64)
+	{	thread_current()->fdt[i]=f;
 		return i;
+	}
 	else
 		return -1;
 }
 
+// int set_fd (struct file* f){
+// 	int fd = thread_current()->next_fd;
+// 	(thread_current()->fdt)[fd]=f;
+// 	(thread_current()->next_fd)++;
+// 	return fd;
+// }
 
 int open (const char *file){
-	// printf("\n\n@@@@@@open\t\n\n");
+	/* file 경로의 파일을 열고, fd를 return
+	 * 열 수 없으면 -1 return
+	 * fd 0,1은 stdin/stdout을 위해 reserved되어있으므로 사용 X
+	 * fd는 child process에 inherited
+	 * file이 여러번 open되면 새 fd 반환
+	 * 한 file에 대한 서로 다른 파일 디스크립터는 각각 독립적으로 닫히고,
+	 * file position을 공유하지 않음
+	 */
 
 	// lock_acquire(&filesys_lock);
 
-	int fd = alloc_fd();
-	if(*file == "" && fd < 2){
-		printf("diediediedie\n\n");
-		return -1;
-	}
-	struct file *new_file = filesys_open(file);
-	(thread_current()->fdt)[fd]=new_file;
-	// lock_release(&filesys_lock);
-	return fd;
+	// printf("@@@@@@@@@@@@@@@hihi 1111\n\n");
+	// int fd = alloc_fd();
+	// if(*file == "" && fd < 2){
+	// 	return -1;
+	// }
 	
+	// printf("got fdt: %p\n\n",thread_current()->fdt);
+	if (file==NULL) return -1;
+	// lock_acquire(&filesys_lock);
+	struct file *new_file = filesys_open(file);
+	if (new_file==NULL) return -1;
+	
+	int fd = set_fd(new_file);
+	// lock_release(&filesys_lock);
+	// printf("\n\n@@@@@@%d\t\n\n",fd);
+	return fd;
 }
 
 
@@ -312,9 +343,12 @@ int read (int fd, void *buffer, unsigned size)
 		return -1;
 	}
 	else {
+		lock_acquire(&filesys_lock);
 		struct file* f = (thread_current()->fdt)[fd];
 		if (f==NULL) return -1;
-		return file_read(f,buffer,size);
+		off_t ans = file_read(f,buffer,size);
+		lock_release(&filesys_lock);
+		return ans;
 	}
 }
 
@@ -326,8 +360,6 @@ int write (int fd, const void *buffer, unsigned size)
 	}
 	else if (fd==STDOUT_FILENO){
 		//FIXME: 
-		// printf("using buffer\n\n");
-		// printf("%d\tbuffer%d\n\n", size, sizeof(buffer));
 		putbuf(buffer,size);
 		return size;
 	}
@@ -355,5 +387,7 @@ unsigned tell (int fd)
 void close (int fd)
 {
 	struct file* f = thread_current()->fdt[fd];
+	if(f==NULL) exit(-1);
 	file_close(f);
+	thread_current()->fdt[fd]=NULL;
 }
