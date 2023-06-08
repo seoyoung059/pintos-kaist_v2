@@ -25,27 +25,18 @@ void syscall_handler (struct intr_frame *);
 void halt(void);
 
 void exit (int status);
-int fork (const char *thread_name);
+int fork (const char *thread_name, struct intr_frame *f);
 int exec(const char *cmd_line);
 int wait(int pid);
 bool create (const char *file, unsigned initial_size);
 bool remove (const char *file);
 int alloc_fd(void);
 int open (const char *file);
-// int open (const char *file)
-// {
-// 	struct file *new_file = filesys_open(file);
-// }
-
 int filesize (int fd);
-
 int read (int fd, void *buffer, unsigned size);
-
 int write (int fd, const void *buffer, unsigned size);
-
 void seek (int fd, unsigned position);
 unsigned tell (int fd);
-
 void close (int fd);
 
 /* System call.
@@ -112,14 +103,14 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		case SYS_FORK:                   /* Clone current process. */
 			{// pid_t fork (const char *thread_name)
 				// printf("fork\n\n");
-				f->R.rax = fork(f->R.rdi);
+				f->R.rax = fork(f->R.rdi,f);
 				break;
 			}
 		case SYS_EXEC:                   /* Switch current process. */
 			{// int exec (const char *file)
 				// printf("exec\n\n");
 				// f->R.rax = 
-				exec(f->R.rdi);
+				f->R.rax = exec(f->R.rdi);
 				break;
 			}
 		case SYS_WAIT:                   /* Wait for a child process to die. */
@@ -219,7 +210,7 @@ void exit (int status)
 	thread_exit();
 }
 
-int fork (const char *thread_name)
+int fork (const char *thread_name, struct intr_frame *f)
 {
 	/* TODO: thread_name이라는 이름으로 현재 프로세스의 복사본인 새 프로세스를 만듦.
 	 * callee-saved 레지스터인 %RBX, %RSP, %RBP, and %R12 - %R15 외의 레지스터의
@@ -232,7 +223,7 @@ int fork (const char *thread_name)
 	 * threads/mmu.c의 pml4_for_each()를 사용하여 전체 유저 메모리 공간을 복사하게 되어있지만,
 	 * 전달된 pte_for_each_func의 빈 부분을 채워넣어야 한다.
 	 */
-	return process_fork(thread_name,&thread_current()->tf);
+	return process_fork(thread_name,f);
 	
 }
 

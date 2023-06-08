@@ -221,6 +221,7 @@ thread_create (const char *name, int priority,
 	/* Add to run queue. */
 	thread_unblock (t);												/* 쓰레드를 ready_list에 삽입 */
 
+	list_push_back(&thread_current()->child_list,&t->c_elem);
 	/* Compare the priorities of the currently running thread and the newly
 	inserted one. Yield the CPU if the newly arriving thread has higer priority*/
 	if (thread_current()->priority < t->priority){
@@ -452,7 +453,7 @@ init_thread (struct thread *t, const char *name, int priority) {
 
 	sema_init(&t->wait_sema, 0);
 	sema_init(&t->exec_sema, 0);
-	t->exit_status = 0;
+	t->exit_status = 1;
 	t->load_status = 0;
 	list_init(&t->child_list);
 }

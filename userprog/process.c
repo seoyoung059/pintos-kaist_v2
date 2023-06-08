@@ -74,14 +74,41 @@ initd (void *f_name) {
 	NOT_REACHED ();
 }
 
+/* find child process of the current process with tid
+ * return NULL if the search failed.
+ */
+struct thread* get_current_child(tid_t tid)
+{
+	struct thread* curr = thread_current();
+	struct list_elem* tmp;
+	
+	/* if list is empty, search fails. return NULL*/
+	if (list_empty(&curr->child_list)) return NULL;
+
+	for(tmp = list_front(&curr->child_list); tmp!=list_tail(&curr->child_list); tmp = list_next(tmp)){
+		if (list_entry(tmp, struct thread, c_elem)->tid==tid)
+			return list_entry(tmp, struct thread, c_elem);
+	}
+
+	/* if there's no child process with tid, search fails. return NULL*/
+	return NULL;
+}
+
 /* Clones the current process as `name`. Returns the new process's thread id, or
  * TID_ERROR if the thread cannot be created. */
 tid_t
 process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 	/* Clone current thread to new thread.*/
-	// sema_down(&thread_current()->exec_sema);
-	return thread_create (name,	PRI_DEFAULT, __do_fork, thread_current());
-	
+	// printf("@ procss_fork\n");
+	memcpy(&thread_current()->iff_,if_,sizeof(struct intr_frame));
+	// printf("process_fork: %p\n",thread_current()->pml4);
+	int tid = thread_create (name,	PRI_DEFAULT, __do_fork, thread_current());
+	struct thread* child= get_current_child(tid);
+	// print("%d\t%d\n\n",tid,child->tid);
+	if (child==NULL) printf("nullnullnull\n");
+	sema_down(&child->exec_sema);
+	return tid;
+	// return =thread_create (name,	PRI_DEFAULT, __do_fork, thread_current());
 }
 
 #ifndef VM
@@ -89,6 +116,7 @@ process_fork (const char *name, struct intr_frame *if_ UNUSED) {
  * pml4_for_each. This is only for the project 2. */
 static bool
 duplicate_pte (uint64_t *pte, void *va, void *aux) {
+	// printf("dupdup\n\n");
 	struct thread *current = thread_current ();
 	struct thread *parent = (struct thread *) aux;
 	void *parent_page;
@@ -96,14 +124,20 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	bool writable;
 
 	/* 1. TODO: If the parent_page is kernel page, then return immediately. */
-	if(is_kernel_vaddr(va)) return false;
+	if(is_kernel_vaddr(va)) return true;
 
 	/* 2. Resolve VA from the parent's page map level 4. */
 	parent_page = pml4_get_page (parent->pml4, va);
+	if (parent_page==NULL){
+		return false;
+	}
 
 	/* 3. TODO: Allocate new PAL_USER page for the child and set result to
 	 *    TODO: NEWPAGE. */
-	newpage = palloc_get_page(PAL_USER);
+	newpage = palloc_get_page(PAL_USER|PAL_ZERO);
+	if(newpage==NULL) {
+		return false;
+	}
 
 	/* 4. TODO: Duplicate parent's page to the new page and
 	 *    TODO: check whether parent's page is writable or not (set WRITABLE
@@ -127,17 +161,20 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
  *       this function. */
 static void
 __do_fork (void *aux) {
+	// printf("do_fork\n");
 	struct intr_frame if_;
 	struct thread *parent = (struct thread *) aux;
 	struct thread *current = thread_current ();
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
-	struct intr_frame *parent_if;
+	struct intr_frame *parent_if=&parent->iff_;
 	bool succ = true;
 
 	/* 1. Read the cpu context to local stack. */
+	// printf("do_fork: 1\n");
 	memcpy (&if_, parent_if, sizeof (struct intr_frame));
-
+	// if_.R.rax = 0;
 	/* 2. Duplicate PT */
+	// printf("do_fork: 2\n");
 	current->pml4 = pml4_create();
 	if (current->pml4 == NULL)
 		goto error;
@@ -148,6 +185,9 @@ __do_fork (void *aux) {
 	if (!supplemental_page_table_copy (&current->spt, &parent->spt))
 		goto error;
 #else
+	// printf("do_fork: 3\n");
+	// debug_backtrace();
+	// printf("%p\n\n",parent->pml4);
 	if (!pml4_for_each (parent->pml4, duplicate_pte, parent))
 		goto error;
 #endif
@@ -157,23 +197,26 @@ __do_fork (void *aux) {
 	 * TODO:       in include/filesys/file.h. Note that parent should not return
 	 * TODO:       from the fork() until this function successfully duplicates
 	 * TODO:       the resources of parent.*/
+	// printf("do_fork: 4\n");
 	for (int i=2; i<64; i++){
 		if(parent->fdt[i]!=NULL) 
 		current->fdt[i] = file_duplicate(parent->fdt[i]);
 	}
 
 	/* set process hierarchy */
-	list_push_back(&parent->child_list, &current->c_elem);
-	current->parent = parent;
+	// list_push_back(&parent->child_list, &current->c_elem);
+	// current->parent = parent;
 
-	sema_up(&parent->exec_sema);
+	if_.R.rax = 0;
 
 	process_init ();
+	sema_up(&current->exec_sema);
 
 	/* Finally, switch to the newly created process. */
 	if (succ)
 		do_iret (&if_);
 error:
+	printf("error\n\n");
 	sema_up(&parent->exec_sema);
 	thread_exit ();
 }
@@ -723,3 +766,5 @@ setup_stack (struct intr_frame *if_) {
 	return success;
 }
 #endif /* VM */
+
+

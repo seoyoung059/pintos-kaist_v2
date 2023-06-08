@@ -102,15 +102,16 @@ struct thread {
 	struct list_elem d_elem;
 
 	struct semaphore wait_sema;
-	int exit_status;
 	struct semaphore exec_sema;
+	int exit_status;
 	int load_status;
 	struct file **fdt;
-	int next_fd;
 	
 	struct thread* parent;
 	struct list_elem c_elem;
 	struct list child_list;
+
+	struct intr_frame iff_;
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
