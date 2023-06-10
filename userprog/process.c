@@ -269,7 +269,7 @@ process_wait (tid_t child_tid UNUSED) {
 	// return -1;
 	// pid를 갖는 child process 찾기
 	// enum intr_level old_level = intr_disable();
-	printf("process_wait\n\n");
+	// printf("process_wait\n\n");
 	thread_current();
 	struct thread* child = get_current_child(child_tid);
 	if (child == NULL) exit(-1);
@@ -278,7 +278,7 @@ process_wait (tid_t child_tid UNUSED) {
 			exit(-1);}
 	// child process가 끝날때까지 기다리고 (sema up은 child가 종료할 때)
 	sema_down(&child->wait_sema);
-	// intr_set_level (old_level);
+	// intr_set_level (old_level)
 	
 	// exit status 확인
 	return child->exit_status;
