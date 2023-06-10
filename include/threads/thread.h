@@ -102,15 +102,20 @@ struct thread {
 	struct list_elem d_elem;
 
 	struct semaphore wait_sema;
-	int exit_status;
 	struct semaphore exec_sema;
+	struct semaphore exit_sema;
+	// int exit_flag;
+	int exit_status;
 	int load_status;
+	
 	struct file **fdt;
-	int next_fd;
+	struct file *running_file;
 	
 	struct thread* parent;
 	struct list_elem c_elem;
 	struct list child_list;
+
+	struct intr_frame iff_;
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
@@ -167,4 +172,5 @@ void thread_wakeup(int64_t ticks);
 void thread_save_mintick();
 int64_t thread_get_mintick();
 bool less_priority(const struct list_elem *a, const struct list_elem *b, void *aux);
+struct thread* get_current_child(tid_t tid);
 #endif /* threads/thread.h */

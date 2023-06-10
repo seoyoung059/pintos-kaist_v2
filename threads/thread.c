@@ -218,6 +218,7 @@ thread_create (const char *name, int priority,
 	t->tf.eflags = FLAG_IF;
 
 	
+	list_push_back(&thread_current()->child_list, &t->c_elem);
 	/* Add to run queue. */
 	thread_unblock (t);												/* 쓰레드를 ready_list에 삽입 */
 
@@ -301,7 +302,9 @@ thread_exit (void) {
 	ASSERT (!intr_context ());
 
 #ifdef USERPROG
+	sema_up(&thread_current()->exit_sema);
 	process_exit ();
+	// thread_current()->exit_flag = 1;
 #endif
 
 	/* Just set our status to dying and schedule another process.
@@ -452,7 +455,10 @@ init_thread (struct thread *t, const char *name, int priority) {
 
 	sema_init(&t->wait_sema, 0);
 	sema_init(&t->exec_sema, 0);
-	t->exit_status = 0;
+	sema_init(&t->exit_sema, 0);
+	
+	// t->exit_flag = 0;
+	t->exit_status = 1;
 	t->load_status = 0;
 	list_init(&t->child_list);
 }
@@ -689,3 +695,22 @@ bool less_priority(const struct list_elem *a, const struct list_elem *b, void *a
 	return (int)(thread_a->priority)	> (int)(thread_b->priority);
 }
 
+/* find child process of the current process with tid
+ * return NULL if the search failed.
+ */
+struct thread* get_current_child(tid_t tid)
+{
+	struct thread* curr = thread_current();
+	struct list_elem* tmp;
+	/* if list is empty, search fails. return NULL*/
+	if (list_empty(&curr->child_list)) return NULL;
+	// printf("current_child\n\n");
+
+	for(tmp = list_front(&curr->child_list); tmp!=list_tail(&curr->child_list); tmp = list_next(tmp)){
+		if (list_entry(tmp, struct thread, c_elem)->tid==tid)
+			return list_entry(tmp, struct thread, c_elem);
+	}
+
+	/* if there's no child process with tid, search fails. return NULL*/
+	return NULL;
+}
