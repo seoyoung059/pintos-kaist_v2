@@ -18,6 +18,7 @@
 #include "threads/mmu.h"
 #include "threads/vaddr.h"
 #include "intrinsic.h"
+#include "userprog/syscall.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -270,18 +271,19 @@ process_wait (tid_t child_tid UNUSED) {
 	// pid를 갖는 child process 찾기
 	// enum intr_level old_level = intr_disable();
 	// printf("process_wait\n\n");
+	int child_status;
 	thread_current();
 	struct thread* child = get_current_child(child_tid);
-	if (child == NULL) exit(-1);
-	if (child->exit_flag && child->wait_sema.value==0)
-		{	printf("wait twice\n");
-			exit(-1);}
+	if (child == NULL) return -1;
+	
 	// child process가 끝날때까지 기다리고 (sema up은 child가 종료할 때)
 	sema_down(&child->wait_sema);
 	// intr_set_level (old_level)
-	
+	child_status = child->exit_status;
+	list_remove(&child->c_elem);
+	sema_up(&child->exit_sema);
 	// exit status 확인
-	return child->exit_status;
+	return child_status;
 	// return 81;
 }
 
@@ -293,6 +295,7 @@ process_exit (void) {
 	 * TODO: Implement process termination message (see
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
+	file_close(curr->running_file);
 	process_cleanup ();	
 }
 
@@ -425,13 +428,17 @@ load (const char *file_name, struct intr_frame *if_) {
 		// printf("%s\t%p\t%ld\n",argv[argc-1],argv[argc-1],strlen(argv[argc-1]));
 	}
 
-
+	lock_acquire(&filesys_lock);
 	/* Open executable file. */
 	file = filesys_open (argv[0]);
 	if (file == NULL) {
 		printf ("load: %s: open failed\n", file_name);
+		lock_release(&filesys_lock);
 		goto done;
 	}
+	thread_current()->running_file = file;
+	file_deny_write(file);
+	lock_release(&filesys_lock);
 
 	/* Read and verify executable header. */
 	// elf file parsing해서 elf header 분리
@@ -558,7 +565,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	success = true;
 done:
 	/* We arrive here whether the load is successful or not. */
-	file_close (file);
+	// file_close (file);
 	return success;
 }
 

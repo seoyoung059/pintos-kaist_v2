@@ -302,8 +302,9 @@ thread_exit (void) {
 	ASSERT (!intr_context ());
 
 #ifdef USERPROG
+	sema_up(&thread_current()->exit_sema);
 	process_exit ();
-	thread_current()->exit_flag = 1;
+	// thread_current()->exit_flag = 1;
 #endif
 
 	/* Just set our status to dying and schedule another process.
@@ -454,7 +455,9 @@ init_thread (struct thread *t, const char *name, int priority) {
 
 	sema_init(&t->wait_sema, 0);
 	sema_init(&t->exec_sema, 0);
-	t->exit_flag = 0;
+	sema_init(&t->exit_sema, 0);
+	
+	// t->exit_flag = 0;
 	t->exit_status = 1;
 	t->load_status = 0;
 	list_init(&t->child_list);

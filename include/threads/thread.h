@@ -103,10 +103,13 @@ struct thread {
 
 	struct semaphore wait_sema;
 	struct semaphore exec_sema;
-	int exit_flag;
+	struct semaphore exit_sema;
+	// int exit_flag;
 	int exit_status;
 	int load_status;
+	
 	struct file **fdt;
+	struct file *running_file;
 	
 	struct thread* parent;
 	struct list_elem c_elem;
