@@ -699,9 +699,9 @@ struct thread* get_current_child(tid_t tid)
 {
 	struct thread* curr = thread_current();
 	struct list_elem* tmp;
-	printf("current_child\n\n");
 	/* if list is empty, search fails. return NULL*/
 	if (list_empty(&curr->child_list)) return NULL;
+	// printf("current_child\n\n");
 
 	for(tmp = list_front(&curr->child_list); tmp!=list_tail(&curr->child_list); tmp = list_next(tmp)){
 		if (list_entry(tmp, struct thread, c_elem)->tid==tid)
