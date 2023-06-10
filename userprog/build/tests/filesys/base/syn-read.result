@@ -1,0 +1,11 @@
+FAIL
+Kernel panic in run: PANIC at ../../threads/synch.c:250 in lock_release(): assertion `lock_held_by_current_thread (lock)' failed.
+Call stack: 0x8004217f0b 0x800420a570 0x800421d31c 0x800421ce57 0x800421cbb8 0x40024b 0x400f8a
+Translation of call stack:
+0x0000008004217f0b: debug_panic (lib/kernel/debug.c:32)
+0x000000800420a570: lock_release (threads/synch.c:251)
+0x000000800421d31c: read (userprog/syscall.c:348)
+0x000000800421ce57: syscall_handler (userprog/syscall.c:149)
+0x000000800421cbb8: no_sti (userprog/syscall-entry.o:?)
+0x000000000040024b: (unknown)
+0x0000000000400f8a: (unknown)
