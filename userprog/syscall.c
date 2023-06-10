@@ -24,13 +24,13 @@ void syscall_handler (struct intr_frame *);
 
 void halt(void);
 
-void exit (int status);
+int exit (int status);
 int fork (const char *thread_name, struct intr_frame *f);
 int exec(const char *cmd_line);
 int wait(int pid);
 bool create (const char *file, unsigned initial_size);
 bool remove (const char *file);
-int alloc_fd(void);
+int set_fd(struct file* f);
 int open (const char *file);
 int filesize (int fd);
 int read (int fd, void *buffer, unsigned size);
@@ -56,7 +56,7 @@ void
 syscall_init (void) {
 	write_msr(MSR_STAR, ((uint64_t)SEL_UCSEG - 0x10) << 48  |
 			((uint64_t)SEL_KCSEG) << 32);
-	write_msr(MSR_LSTAR, (uint64_t) syscall_entry);
+	write_msr(MSR_LSTAR, (uint64_t) syscall_entry);	
 
 	/* The interrupt service rountine should not serve any interrupts
 	 * until the syscall_entry swaps the userland stack to the kernel
@@ -97,7 +97,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		case SYS_EXIT:                   /* Terminate this process. */
 			{// void exit (int status)
 				// printf("exit\n\n");
-				exit(f->R.rdi);		
+				f->R.rax = exit(f->R.rdi);		
 				break;	
 			}
 		case SYS_FORK:                   /* Clone current process. */
@@ -198,7 +198,7 @@ void halt(void)
 	power_off();
 }
 
-void exit (int status)
+int exit (int status)
 {
 	/* 현재 돌아가고 있는 유저 프로그램을 종료하고, 커널에 status를 return
 	 * 만약 부모 프로세스가 wait중이라면, 여기서 반환하는 status를 반환할 것.
@@ -207,7 +207,10 @@ void exit (int status)
 	struct thread *cur = thread_current();
 	printf("%s: exit(%d)\n", cur -> name, status);
 	thread_current()->exit_status=status;
+	sema_up(&thread_current()->wait_sema);
 	thread_exit();
+
+	return status;
 }
 
 int fork (const char *thread_name, struct intr_frame *f)
@@ -247,8 +250,27 @@ int exec(const char *cmd_line)
 }
 
 int wait(int pid)
-{// TODO: 
-	
+{// TODO:
+	/* pid를 갖는 child process가 끝날때까지 기다리고, 그 exit status를 반환
+	 * pid 프로세스가 아직 살아있으면, 종료할때까지 기다리고, pid 프로세스가 exit으로 
+	 * 전달한 status를 return. pid가 exit()을 호출하지 않고, 커널에 의해 종료되면,
+	 * wait는 -1을 반환.
+	 * parent는 child 프로세스 pid가 이미 종료된 시점에 wait을 호출할 수 있으며, 커널은
+	 * 해당 child 프로세스의 exit staus를 반환할 수 있게/커널에 의해 종료된 것을 확인할
+	 * 수 있게 해 주어야 함.
+	 * *wait이 fail하여 -1을 return하는 경우
+	 * 		- pid 프로세스가 wait을 호출하는 프로세스의 직접적인 자식이 아닐 때 
+	 * 		- wait를 호출하는 프로세스가 이미 wait를 호출했을 때.
+	 * 				한 프로세스는 그 자식 프로세스들에 대해 한 시점에 하나의 wait만 할 수 있음
+	//  */
+	// // pid를 갖는 child process 찾기
+	// struct thread* child = get_current_child(pid);
+	// // child process가 끝날때까지 기다리고 (sema up은 child가 종료할 때)
+	// sema_down(&child->wait_sema);
+	// // exit status 확인
+	// return child->exit_status;
+	// // return 81;
+	return process_wait(pid);
 }
 
 bool create (const char *file, unsigned initial_size)
@@ -265,13 +287,17 @@ bool remove (const char *file)
 int set_fd(struct file* f){
 	int i=2;
 	struct file** fdt = thread_current()->fdt;
+	lock_acquire(&filesys_lock);
 	for(i=2; i < 64 && fdt[i] != NULL; i++) continue;
 	if(i < 64)
 	{	thread_current()->fdt[i]=f;
+		lock_release(&filesys_lock);
 		return i;
 	}
-	else
+	else{
+		lock_release(&filesys_lock);
 		return -1;
+	}
 }
 
 

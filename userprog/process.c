@@ -74,41 +74,41 @@ initd (void *f_name) {
 	NOT_REACHED ();
 }
 
-/* find child process of the current process with tid
- * return NULL if the search failed.
- */
-struct thread* get_current_child(tid_t tid)
-{
-	struct thread* curr = thread_current();
-	struct list_elem* tmp;
+// /* find child process of the current process with tid
+//  * return NULL if the search failed.
+//  */
+// struct thread* get_current_child(tid_t tid)
+// {
+// 	struct thread* curr = thread_current();
+// 	struct list_elem* tmp;
 	
-	/* if list is empty, search fails. return NULL*/
-	if (list_empty(&curr->child_list)) return NULL;
+// 	/* if list is empty, search fails. return NULL*/
+// 	if (list_empty(&curr->child_list)) return NULL;
 
-	for(tmp = list_front(&curr->child_list); tmp!=list_tail(&curr->child_list); tmp = list_next(tmp)){
-		if (list_entry(tmp, struct thread, c_elem)->tid==tid)
-			return list_entry(tmp, struct thread, c_elem);
-	}
+// 	for(tmp = list_front(&curr->child_list); tmp!=list_tail(&curr->child_list); tmp = list_next(tmp)){
+// 		if (list_entry(tmp, struct thread, c_elem)->tid==tid)
+// 			return list_entry(tmp, struct thread, c_elem);
+// 	}
 
-	/* if there's no child process with tid, search fails. return NULL*/
-	return NULL;
-}
+// 	/* if there's no child process with tid, search fails. return NULL*/
+// 	return NULL;
+// }
 
 /* Clones the current process as `name`. Returns the new process's thread id, or
  * TID_ERROR if the thread cannot be created. */
 tid_t
 process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 	/* Clone current thread to new thread.*/
-	// printf("@ procss_fork\n");
-	memcpy(&thread_current()->iff_,if_,sizeof(struct intr_frame));
-	// printf("process_fork: %p\n",thread_current()->pml4);
+	// memcpy(&thread_current()->iff_, if_,sizeof(struct intr_frame));
+	memcpy(&thread_current()->iff_, if_,sizeof(struct intr_frame));
+
 	int tid = thread_create (name,	PRI_DEFAULT, __do_fork, thread_current());
+
 	struct thread* child= get_current_child(tid);
-	// print("%d\t%d\n\n",tid,child->tid);
 	if (child==NULL) printf("nullnullnull\n");
+	
 	sema_down(&child->exec_sema);
 	return tid;
-	// return =thread_create (name,	PRI_DEFAULT, __do_fork, thread_current());
 }
 
 #ifndef VM
@@ -116,7 +116,6 @@ process_fork (const char *name, struct intr_frame *if_ UNUSED) {
  * pml4_for_each. This is only for the project 2. */
 static bool
 duplicate_pte (uint64_t *pte, void *va, void *aux) {
-	// printf("dupdup\n\n");
 	struct thread *current = thread_current ();
 	struct thread *parent = (struct thread *) aux;
 	void *parent_page;
@@ -161,20 +160,19 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
  *       this function. */
 static void
 __do_fork (void *aux) {
-	// printf("do_fork\n");
 	struct intr_frame if_;
 	struct thread *parent = (struct thread *) aux;
 	struct thread *current = thread_current ();
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
-	struct intr_frame *parent_if=&parent->iff_;
+	struct intr_frame *parent_if = &parent->iff_;
 	bool succ = true;
 
+
+/* Parent Process의 Context(CPU, VM, file)를 child process로 복사 */
 	/* 1. Read the cpu context to local stack. */
-	// printf("do_fork: 1\n");
 	memcpy (&if_, parent_if, sizeof (struct intr_frame));
-	// if_.R.rax = 0;
+
 	/* 2. Duplicate PT */
-	// printf("do_fork: 2\n");
 	current->pml4 = pml4_create();
 	if (current->pml4 == NULL)
 		goto error;
@@ -185,9 +183,6 @@ __do_fork (void *aux) {
 	if (!supplemental_page_table_copy (&current->spt, &parent->spt))
 		goto error;
 #else
-	// printf("do_fork: 3\n");
-	// debug_backtrace();
-	// printf("%p\n\n",parent->pml4);
 	if (!pml4_for_each (parent->pml4, duplicate_pte, parent))
 		goto error;
 #endif
@@ -197,17 +192,15 @@ __do_fork (void *aux) {
 	 * TODO:       in include/filesys/file.h. Note that parent should not return
 	 * TODO:       from the fork() until this function successfully duplicates
 	 * TODO:       the resources of parent.*/
-	// printf("do_fork: 4\n");
 	for (int i=2; i<64; i++){
 		if(parent->fdt[i]!=NULL) 
 		current->fdt[i] = file_duplicate(parent->fdt[i]);
 	}
 
-	/* set process hierarchy */
-	// list_push_back(&parent->child_list, &current->c_elem);
-	// current->parent = parent;
 
+	//rax가 0이 아니면 다른 syscall이 실행될 수 있기 때문에 0으로 바꿔줘야한다.
 	if_.R.rax = 0;
+	
 
 	process_init ();
 	sema_up(&current->exec_sema);
@@ -216,7 +209,6 @@ __do_fork (void *aux) {
 	if (succ)
 		do_iret (&if_);
 error:
-	printf("error\n\n");
 	sema_up(&parent->exec_sema);
 	thread_exit ();
 }
@@ -271,10 +263,26 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
-	for (int i=0;i < 1<<25;i++){
-		continue;
-	}
-	return -1;
+	// for (int i=0;i < 1<<25;i++){
+	// 	continue;
+	// }
+	// return -1;
+	// pid를 갖는 child process 찾기
+	// enum intr_level old_level = intr_disable();
+	printf("process_wait\n\n");
+	thread_current();
+	struct thread* child = get_current_child(child_tid);
+	if (child == NULL) exit(-1);
+	if (child->exit_flag && child->wait_sema.value==0)
+		{	printf("wait twice\n");
+			exit(-1);}
+	// child process가 끝날때까지 기다리고 (sema up은 child가 종료할 때)
+	sema_down(&child->wait_sema);
+	// intr_set_level (old_level);
+	
+	// exit status 확인
+	return child->exit_status;
+	// return 81;
 }
 
 /* Exit the process. This function is called by thread_exit (). */

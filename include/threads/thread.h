@@ -103,6 +103,7 @@ struct thread {
 
 	struct semaphore wait_sema;
 	struct semaphore exec_sema;
+	int exit_flag;
 	int exit_status;
 	int load_status;
 	struct file **fdt;
@@ -168,4 +169,5 @@ void thread_wakeup(int64_t ticks);
 void thread_save_mintick();
 int64_t thread_get_mintick();
 bool less_priority(const struct list_elem *a, const struct list_elem *b, void *aux);
+struct thread* get_current_child(tid_t tid);
 #endif /* threads/thread.h */
