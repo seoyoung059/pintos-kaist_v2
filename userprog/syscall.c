@@ -65,6 +65,7 @@ syscall_init (void) {
 			FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
 
 	lock_init(&filesys_lock);
+	lock_init(&load_lock);
 }
 
 /* The main system call interface */
@@ -207,7 +208,9 @@ int exit (int status)
 	struct thread *cur = thread_current();
 	printf("%s: exit(%d)\n", cur -> name, status);
 	thread_current()->exit_status=status;
+	file_close(cur->running_file);
 	sema_up(&thread_current()->wait_sema);
+	sema_down(&thread_current()->exit_sema);
 	thread_exit();
 
 	return status;
@@ -292,6 +295,7 @@ int set_fd(struct file* f){
 	if(i < 64)
 	{	thread_current()->fdt[i]=f;
 		lock_release(&filesys_lock);
+		// printf("%d\n",i);
 		return i;
 	}
 	else{
@@ -313,6 +317,7 @@ int open (const char *file){
 	if (file==NULL) return -1;
 	struct file *new_file = filesys_open(file);
 	if (new_file==NULL) return -1;
+	if (new_file==thread_current()->running_file) file_deny_write(new_file);
 	
 	int fd = set_fd(new_file);
 	return fd;
@@ -342,7 +347,9 @@ int read (int fd, void *buffer, unsigned size)
 	else {
 		lock_acquire(&filesys_lock);
 		struct file* f = (thread_current()->fdt)[fd];
-		if (f==NULL) return -1;
+		if (f==NULL) {
+			lock_release(&filesys_lock);
+			return -1;}
 		off_t ans = file_read(f,buffer,size);
 		lock_release(&filesys_lock);
 		return ans;
@@ -382,8 +389,9 @@ unsigned tell (int fd)
 
 void close (int fd)
 {
+	lock_acquire(&filesys_lock);
 	struct file* f = thread_current()->fdt[fd];
 	if(f==NULL) exit(-1);
-	file_close(f);
 	thread_current()->fdt[fd]=NULL;
+	lock_release(&filesys_lock);
 }

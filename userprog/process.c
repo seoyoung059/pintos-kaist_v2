@@ -19,6 +19,7 @@
 #include "threads/vaddr.h"
 #include "intrinsic.h"
 #include "userprog/syscall.h"
+// #include "threads/synch.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -235,7 +236,9 @@ process_exec (void *f_name) {
 
 	// char *token, *save_ptr;
 	// token = strtok_r(file_name, " ", &save_ptr);
+	// lock_acquire(&load_lock);
 	success = load (file_name, &_if);
+	// lock_release(&load_lock);
 	// success = load (token, &_if);
 	/* And then load the binary */
 
@@ -272,7 +275,7 @@ process_wait (tid_t child_tid UNUSED) {
 	// enum intr_level old_level = intr_disable();
 	// printf("process_wait\n\n");
 	int child_status;
-	thread_current();
+	// thread_current();
 	struct thread* child = get_current_child(child_tid);
 	if (child == NULL) return -1;
 	
@@ -287,6 +290,21 @@ process_wait (tid_t child_tid UNUSED) {
 	// return 81;
 }
 
+void
+close_all_fdt(struct thread* t){
+	for (int i=2; i<64; i++){
+		if(t->fdt[i]!=NULL) file_close(t->fdt[i]);
+	}
+}
+
+void
+close_all_child_fdt(struct list* child){
+	if (list_empty(child)) return;
+	struct list_elem* tmp;
+	for (tmp = list_front(child); tmp!=list_tail(child); tmp = list_next(tmp)){
+		close_all_fdt(list_entry(tmp,struct thread, c_elem));
+	}
+}
 /* Exit the process. This function is called by thread_exit (). */
 void
 process_exit (void) {
@@ -295,7 +313,9 @@ process_exit (void) {
 	 * TODO: Implement process termination message (see
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
-	file_close(curr->running_file);
+	// close_all_child_fdt(&curr->child_list);
+	// close_all_fdt(curr);
+	// file_close(curr->running_file);
 	process_cleanup ();	
 }
 
@@ -428,17 +448,17 @@ load (const char *file_name, struct intr_frame *if_) {
 		// printf("%s\t%p\t%ld\n",argv[argc-1],argv[argc-1],strlen(argv[argc-1]));
 	}
 
-	lock_acquire(&filesys_lock);
+	// lock_acquire(&filesys_lock);
 	/* Open executable file. */
 	file = filesys_open (argv[0]);
 	if (file == NULL) {
 		printf ("load: %s: open failed\n", file_name);
-		lock_release(&filesys_lock);
+		// lock_release(&filesys_lock);
 		goto done;
 	}
+	// file_deny_write(file);
 	thread_current()->running_file = file;
-	file_deny_write(file);
-	lock_release(&filesys_lock);
+	// lock_release(&filesys_lock);
 
 	/* Read and verify executable header. */
 	// elf file parsing해서 elf header 분리
@@ -501,6 +521,7 @@ load (const char *file_name, struct intr_frame *if_) {
 					if (!load_segment (file, file_page, (void *) mem_page,
 								read_bytes, zero_bytes, writable))
 						goto done;
+					file_deny_write(file);
 				}
 				else
 					goto done;

@@ -302,7 +302,6 @@ thread_exit (void) {
 	ASSERT (!intr_context ());
 
 #ifdef USERPROG
-	sema_up(&thread_current()->exit_sema);
 	process_exit ();
 	// thread_current()->exit_flag = 1;
 #endif
@@ -452,10 +451,11 @@ init_thread (struct thread *t, const char *name, int priority) {
 	list_init(&t->donation);
 	t->wait_on_lock =NULL;
 	t->priority_origin =priority;
+	t->running_file = NULL;
 
-	sema_init(&t->wait_sema, 0);
-	sema_init(&t->exec_sema, 0);
-	sema_init(&t->exit_sema, 0);
+	sema_init(&t->wait_sema, 0);	// for system call wait
+	sema_init(&t->exec_sema, 0);	// for system call exec, wait for loading
+	sema_init(&t->exit_sema, 0);	// for system call wait, wait for parent to get the exit status of child
 	
 	// t->exit_flag = 0;
 	t->exit_status = 1;
