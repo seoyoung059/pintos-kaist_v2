@@ -13,10 +13,7 @@
 #include "devices/input.h"
 #include "lib/string.h"
 #include "threads/palloc.h"
-// #include "user/syscall.h"
-// #include ""
 
-// #include "u"
 #include "userprog/process.h"
 
 void syscall_entry (void);
@@ -208,6 +205,7 @@ int exit (int status)
 	printf("%s: exit(%d)\n", cur -> name, status);
 	thread_current()->exit_status=status;
 	sema_up(&thread_current()->wait_sema);
+	file_close(cur->running_file);
 	thread_exit();
 
 	return status;
@@ -246,7 +244,11 @@ int exec(const char *cmd_line)
 	if (fn_copy == NULL)
 		return TID_ERROR;
 	strlcpy (fn_copy, cmd_line, PGSIZE);
-	if(process_exec(fn_copy)==-1) exit(-1);
+	if(process_exec(fn_copy)==-1) {
+		// palloc_free_page(fn_copy); //@@added for free
+		exit(-1);
+	}
+	return 0; //@@added16:15
 }
 
 int wait(int pid)
@@ -287,15 +289,15 @@ bool remove (const char *file)
 int set_fd(struct file* f){
 	int i=2;
 	struct file** fdt = thread_current()->fdt;
-	lock_acquire(&filesys_lock);
+	// lock_acquire(&filesys_lock); //@@deleted
 	for(i=2; i < 64 && fdt[i] != NULL; i++) continue;
 	if(i < 64)
 	{	thread_current()->fdt[i]=f;
-		lock_release(&filesys_lock);
+		// lock_release(&filesys_lock); //@@deleted
 		return i;
 	}
 	else{
-		lock_release(&filesys_lock);
+		// lock_release(&filesys_lock); //@@deleted
 		return -1;
 	}
 }
@@ -313,7 +315,6 @@ int open (const char *file){
 	if (file==NULL) return -1;
 	struct file *new_file = filesys_open(file);
 	if (new_file==NULL) return -1;
-	
 	int fd = set_fd(new_file);
 	return fd;
 }
@@ -340,18 +341,17 @@ int read (int fd, void *buffer, unsigned size)
 		return -1;
 	}
 	else {
-		lock_acquire(&filesys_lock);
+		// lock_acquire(&filesys_lock); //@@deleted
 		struct file* f = (thread_current()->fdt)[fd];
 		if (f==NULL) return -1;
 		off_t ans = file_read(f,buffer,size);
-		lock_release(&filesys_lock);
+		// lock_release(&filesys_lock); //@@deleted
 		return ans;
 	}
 }
 
 int write (int fd, const void *buffer, unsigned size)
 {	
-	// printf("\n\n@@@@write\n\n");
 	if (fd==STDIN_FILENO) {
 		return -1;
 	}
@@ -360,10 +360,10 @@ int write (int fd, const void *buffer, unsigned size)
 		return size;
 	}
 	else {
-		lock_acquire(&filesys_lock);
+		lock_acquire(&filesys_lock); //@@deleted
 		struct file* f = thread_current()->fdt[fd];
 		off_t val = file_write(f, buffer, size);
-		lock_release(&filesys_lock);
+		lock_release(&filesys_lock); //@@deleted
 		return val;
 	}
 }

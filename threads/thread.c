@@ -302,7 +302,7 @@ thread_exit (void) {
 	ASSERT (!intr_context ());
 
 #ifdef USERPROG
-	sema_up(&thread_current()->exit_sema);
+	sema_down(&thread_current()->exit_sema);
 	process_exit ();
 	// thread_current()->exit_flag = 1;
 #endif

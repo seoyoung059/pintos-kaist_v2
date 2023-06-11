@@ -295,7 +295,7 @@ process_exit (void) {
 	 * TODO: Implement process termination message (see
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
-	file_close(curr->running_file);
+	// file_close(curr->running_file);
 	process_cleanup ();	
 }
 
@@ -428,17 +428,17 @@ load (const char *file_name, struct intr_frame *if_) {
 		// printf("%s\t%p\t%ld\n",argv[argc-1],argv[argc-1],strlen(argv[argc-1]));
 	}
 
-	lock_acquire(&filesys_lock);
+	// lock_acquire(&filesys_lock); //@@deleted
 	/* Open executable file. */
 	file = filesys_open (argv[0]);
 	if (file == NULL) {
 		printf ("load: %s: open failed\n", file_name);
-		lock_release(&filesys_lock);
+		// lock_release(&filesys_lock); //@@deleted
 		goto done;
 	}
 	thread_current()->running_file = file;
 	file_deny_write(file);
-	lock_release(&filesys_lock);
+	// lock_release(&filesys_lock);
 
 	/* Read and verify executable header. */
 	// elf file parsing해서 elf header 분리
