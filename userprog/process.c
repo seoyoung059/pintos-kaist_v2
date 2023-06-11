@@ -264,27 +264,24 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
-	// for (int i=0;i < 1<<25;i++){
-	// 	continue;
-	// }
-	// return -1;
 	// pid를 갖는 child process 찾기
-	// enum intr_level old_level = intr_disable();
-	// printf("process_wait\n\n");
 	int child_status;
-	thread_current();
 	struct thread* child = get_current_child(child_tid);
 	if (child == NULL) return -1;
+
+	if(child->is_waited_flag == true){
+		return -1;
+	}
+
+	child->is_waited_flag = true;
 	
 	// child process가 끝날때까지 기다리고 (sema up은 child가 종료할 때)
 	sema_down(&child->wait_sema);
-	// intr_set_level (old_level)
 	child_status = child->exit_status;
 	list_remove(&child->c_elem);
 	sema_up(&child->exit_sema);
 	// exit status 확인
 	return child_status;
-	// return 81;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
@@ -295,7 +292,10 @@ process_exit (void) {
 	 * TODO: Implement process termination message (see
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
-	// file_close(curr->running_file);
+	file_close(curr->running_file); //@@ added 21:40_2
+	sema_up(&thread_current()->wait_sema);
+
+	sema_down(&thread_current()->exit_sema);
 	process_cleanup ();	
 }
 
