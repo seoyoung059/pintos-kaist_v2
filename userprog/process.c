@@ -211,7 +211,8 @@ __do_fork (void *aux) {
 		do_iret (&if_);
 error:
 	sema_up(&parent->exec_sema);
-	thread_exit ();
+	exit(TID_ERROR);
+	// thread_exit ();
 }
 
 /* Switch the current execution context to the f_name.
