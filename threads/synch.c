@@ -118,6 +118,8 @@ sema_up (struct semaphore *sema) {
    sema->value++;
    // thread_yield();
    thread_set_priority(thread_current()->priority_origin);
+   //#diff
+
    // thread_set_priority(thread_get_priority());
    intr_set_level (old_level);
 }
@@ -196,27 +198,13 @@ lock_acquire (struct lock *lock) {
 
    if (lock->holder != NULL){
       thread_current()->wait_on_lock = lock;
-      // list_insert_ordered(&lock->semaphore.waiters,&thread_current()->elem,less_priority,NULL);
+      //#diff
       list_push_back(&lock->holder->donation,&thread_current()->d_elem);
-      // sema_down (&lock->semaphore);
       donate_priority();
-      struct list_elem* tmp_delem;
-      // int max_priority = lock->holder->priority_origin;
-      // for (tmp_delem = lock->holder->donation.head.next; tmp_delem!=&(lock->holder->donation).tail; tmp_delem=list_next(tmp_delem)){
-      //    struct thread *thread_ptr = list_entry(tmp_delem, struct thread, d_elem);
-      //    // printf("\n\n\n@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n\n\n");
-      //    if(max_priority < thread_ptr->priority){
-      //       max_priority = thread_ptr->priority;
-      //    }
-      // }
-      // lock->holder->priority = max_priority;
-
    }
-   // else{
-      sema_down (&lock->semaphore);
-      thread_current()->wait_on_lock = NULL;
-	   lock->holder = thread_current();
-   // }
+   sema_down (&lock->semaphore);
+   thread_current()->wait_on_lock = NULL;
+   lock->holder = thread_current();
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -248,9 +236,11 @@ void
 lock_release (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
+
    int max_priority = lock->holder->priority_origin;
    struct list_elem* tmp_delem;
-   for (tmp_delem = lock->holder->donation.head.next; tmp_delem!=&(lock->holder->donation).tail;){//확인 필요! Tail쪽
+   //#diff
+   for (tmp_delem = lock->holder->donation.head.next; tmp_delem!=&(lock->holder->donation).tail;){
       struct thread *thread_ptr = list_entry(tmp_delem, struct thread , d_elem);
       if(thread_ptr->wait_on_lock ==lock){
             tmp_delem = list_remove(tmp_delem);

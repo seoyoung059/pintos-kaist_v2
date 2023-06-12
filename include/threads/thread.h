@@ -29,6 +29,10 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+//#diff , added
+#define FDT_PAGES 3
+#define FDCOUNT_LIMIT FDT_PAGES *(1<<9)
+
 /* A kernel thread or user process.
  *
  * Each thread structure is stored in its own 4 kB page.  The
@@ -116,6 +120,8 @@ struct thread {
 	struct list child_list;
 
 	struct intr_frame iff_;
+
+	bool is_waited_flag;
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */

@@ -4,4 +4,4 @@ cd userprog
 make clean
 make
 cd build
-make check
+make check VERBOSE=1

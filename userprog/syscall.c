@@ -13,10 +13,7 @@
 #include "devices/input.h"
 #include "lib/string.h"
 #include "threads/palloc.h"
-// #include "user/syscall.h"
-// #include ""
 
-// #include "u"
 #include "userprog/process.h"
 
 void syscall_entry (void);
@@ -82,35 +79,28 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	 * 유저 스택의 arguments들을 커널로 복사
 	 * rax 레지스터에 시스템 콜의 return값 저장
 	 */
-	// printf ("system call!\n");
 
 	int system_call_num = f->R.rax;
-
 
 	switch(system_call_num){
 		case SYS_HALT:                   /* Halt the operating system. */
 			{
-				// printf("halt\n\n");
 				halt();
 				break;
 			}
 		case SYS_EXIT:                   /* Terminate this process. */
 			{// void exit (int status)
-				// printf("exit\n\n");
-				f->R.rax = exit(f->R.rdi);		
+				exit(f->R.rdi);
 				break;	
 			}
 		case SYS_FORK:                   /* Clone current process. */
 			{// pid_t fork (const char *thread_name)
-				// printf("fork\n\n");
 				f->R.rax = fork(f->R.rdi,f);
 				break;
 			}
 		case SYS_EXEC:                   /* Switch current process. */
 			{// int exec (const char *file)
-				// printf("exec\n\n");
-				// f->R.rax = 
-				f->R.rax = exec(f->R.rdi);
+				f->R.rax = exec(f->R.rdi); //@@deleted 16:24_1
 				break;
 			}
 		case SYS_WAIT:                   /* Wait for a child process to die. */
@@ -121,55 +111,46 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			}
 		case SYS_CREATE:                 /* Create a file. */
 			{// bool create (const char *file, unsigned initial_size)
-				// printf("create\n\n");
 				f->R.rax = create(f->R.rdi, f->R.rsi);
 				break;
 			}
 		case SYS_REMOVE:                 /* Delete a file. */
 			{//bool remove (const char *file)
-				// printf("remove\n\n");
 				f->R.rax = remove(f->R.rdi);
 				break;
 			}
 		case SYS_OPEN:                   /* Open a file. */
 			{// int open (const char *file)
-				// printf("open\n\n");
 				f->R.rax = open(f->R.rdi);
 				break;
 			}
 		case SYS_FILESIZE:               /* Obtain a file's size. */
 			{// int filesize (int fd)
-				// printf("filesize\n\n");
 				f->R.rax = filesize(f->R.rdi);
 				break;
 			}
 		case SYS_READ:                   /* Read from a file. */
 			{//int read (int fd, void *buffer, unsigned size)
-				// printf("read\n\n");
-				f->R.rax =  read(f->R.rdi, f->R.rsi, f->R.rdx);
+				f->R.rax = read(f->R.rdi, f->R.rsi, f->R.rdx);
 				break;
 			}
 		case SYS_WRITE:                  /* Write to a file. */
 			{// int write (int fd, const void *buffer, unsigned size)
-				// printf("write\n\n");
 				f->R.rax = write(f->R.rdi, f->R.rsi, f->R.rdx);
 				break;
 			}
 		case SYS_SEEK:                   /* Change position in a file. */
 			{//void seek (int fd, unsigned position)
-				// printf("seek\n\n");
 				seek(f->R.rdi, f->R.rsi);
 				break;
 			}
 		case SYS_TELL:                   /* Report current position in a file. */
 			{//unsigned tell (int fd)
-				// printf("tell\n\n");
 				f->R.rax = tell(f->R.rdi);
 				break;
 			}
 		case SYS_CLOSE: 
 			{// void close (int fd)
-				// printf("close\n\n");
 				close(f->R.rdi);
 				break;
 			}
@@ -205,9 +186,9 @@ int exit (int status)
 	 * 관습적으로 status=0은 성공이고 그 외엔 에러를 나타냄
 	 */
 	struct thread *cur = thread_current();
+	cur->exit_status=status;
 	printf("%s: exit(%d)\n", cur -> name, status);
-	thread_current()->exit_status=status;
-	sema_up(&thread_current()->wait_sema);
+	// file_close(cur->running_file); //@@ deleted 21:40
 	thread_exit();
 
 	return status;
@@ -243,10 +224,20 @@ int exec(const char *cmd_line)
 	/* Make a copy of FILE_NAME.
 	 * Otherwise there's a race between the caller and load(). */
 	fn_copy = palloc_get_page (0);
-	if (fn_copy == NULL)
-		return TID_ERROR;
+	
+	// if (fn_copy == NULL) //@@deldted 16:26_1
+	// 	return TID_ERROR; 
+	
+	if (fn_copy == NULL) //@@added 16:26_2
+		exit(-1);
+
 	strlcpy (fn_copy, cmd_line, PGSIZE);
-	if(process_exec(fn_copy)==-1) exit(-1);
+	if(process_exec(fn_copy)==-1) {
+		// palloc_free_page(fn_copy); //@@added for free
+		// exit(-1); //@@deldted 16:25_1
+		return -1; //@@added 16:25_2
+	}
+	return 0; //@@added16:15
 }
 
 int wait(int pid)
@@ -287,15 +278,15 @@ bool remove (const char *file)
 int set_fd(struct file* f){
 	int i=2;
 	struct file** fdt = thread_current()->fdt;
-	lock_acquire(&filesys_lock);
+	// lock_acquire(&filesys_lock); //@@deleted
 	for(i=2; i < 64 && fdt[i] != NULL; i++) continue;
 	if(i < 64)
 	{	thread_current()->fdt[i]=f;
-		lock_release(&filesys_lock);
+		// lock_release(&filesys_lock); //@@deleted
 		return i;
 	}
 	else{
-		lock_release(&filesys_lock);
+		// lock_release(&filesys_lock); //@@deleted
 		return -1;
 	}
 }
@@ -313,7 +304,6 @@ int open (const char *file){
 	if (file==NULL) return -1;
 	struct file *new_file = filesys_open(file);
 	if (new_file==NULL) return -1;
-	
 	int fd = set_fd(new_file);
 	return fd;
 }
@@ -340,30 +330,32 @@ int read (int fd, void *buffer, unsigned size)
 		return -1;
 	}
 	else {
-		lock_acquire(&filesys_lock);
 		struct file* f = (thread_current()->fdt)[fd];
 		if (f==NULL) return -1;
+		// lock_acquire(&filesys_lock); //@@added 16:58
 		off_t ans = file_read(f,buffer,size);
-		lock_release(&filesys_lock);
+		// lock_release(&filesys_lock); //@@added 16:58
 		return ans;
 	}
 }
 
 int write (int fd, const void *buffer, unsigned size)
 {	
-	// printf("\n\n@@@@write\n\n");
 	if (fd==STDIN_FILENO) {
 		return -1;
 	}
 	else if (fd==STDOUT_FILENO){
+		// lock_acquire(&filesys_lock); //@@added 16:59
 		putbuf(buffer,size);
+		// lock_release(&filesys_lock); //@@added 16:59
 		return size;
 	}
 	else {
-		lock_acquire(&filesys_lock);
+		lock_acquire(&filesys_lock); //@@deleted
 		struct file* f = thread_current()->fdt[fd];
+		// if (f==NULL) return -1; //@@added 17:00
 		off_t val = file_write(f, buffer, size);
-		lock_release(&filesys_lock);
+		lock_release(&filesys_lock); //@@deleted
 		return val;
 	}
 }
@@ -371,19 +363,22 @@ int write (int fd, const void *buffer, unsigned size)
 void seek (int fd, unsigned position)
 {
 	struct file* f = thread_current()->fdt[fd];
+	// if(f<2) return; //@@added 17:03
 	file_seek(f, position);
 }
 
 unsigned tell (int fd)
 {
 	struct file* f = thread_current()->fdt[fd];
+	// if(f<2) return; //@@added 17:04
 	return file_tell(f);
 }
 
 void close (int fd)
 {
 	struct file* f = thread_current()->fdt[fd];
-	if(f==NULL) exit(-1);
+	// if(f==NULL) exit(-1); //@@deleted 17:05_1
+	// if(f==NULL) return; //@@added 17:05_2
 	file_close(f);
 	thread_current()->fdt[fd]=NULL;
 }
